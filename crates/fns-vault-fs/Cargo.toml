@@ -1,0 +1,12 @@
+[package]
+name = "fns-vault-fs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+filetime = { workspace = true }
+fns-core = { workspace = true }
+fns-hash = { workspace = true }
+fns-sync-plan = { workspace = true }
+regex = { workspace = true }
+thiserror = { workspace = true }
