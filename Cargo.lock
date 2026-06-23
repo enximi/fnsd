@@ -112,6 +112,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fns-local-store"
+version = "0.1.0"
+dependencies = [
+ "fns-core",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "fns-protocol"
 version = "0.1.0"
 dependencies = [

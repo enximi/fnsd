@@ -3,6 +3,7 @@ members = [
     "crates/fns-client-headless",
     "crates/fns-core",
     "crates/fns-hash",
+    "crates/fns-local-store",
     "crates/fns-protocol",
     "crates/fns-sync-plan",
     "crates/fns-vault-fs",
