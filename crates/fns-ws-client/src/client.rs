@@ -1,6 +1,7 @@
 use fns_protocol::{
     Action, BINARY_PREFIX_FILE_SYNC, ClientInfoMessage, FileChunkFrame, decode_binary_frame,
-    decode_file_chunk_payload, decode_text_frame, encode_binary_frame, encode_file_chunk_payload,
+    decode_file_chunk_payload, decode_protobuf_frame, decode_text_frame, encode_binary_frame,
+    encode_file_chunk_payload, encode_protobuf_client_info, encode_protobuf_frame,
     encode_raw_text_frame, encode_text_frame,
 };
 use futures_util::{SinkExt, StreamExt};
@@ -18,12 +19,16 @@ type WsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 #[derive(Debug)]
 pub struct FnsWsClient {
     stream: WsStream,
+    protobuf_enabled: bool,
 }
 
 impl FnsWsClient {
     pub async fn connect(url: &str) -> Result<Self> {
         let (stream, _) = connect_async(url).await?;
-        Ok(Self { stream })
+        Ok(Self {
+            stream,
+            protobuf_enabled: false,
+        })
     }
 
     pub async fn authorize(&mut self, token: impl Into<String>) -> Result<()> {
@@ -36,12 +41,31 @@ impl FnsWsClient {
             .await
     }
 
+    pub async fn send_protobuf_client_info(&mut self, info: &ClientInfo) -> Result<()> {
+        let frame = encode_protobuf_client_info(&info.to_protocol())?;
+        self.stream.send(Message::Binary(frame.into())).await?;
+        Ok(())
+    }
+
+    pub fn enable_protobuf(&mut self) {
+        self.protobuf_enabled = true;
+    }
+
+    pub fn protobuf_enabled(&self) -> bool {
+        self.protobuf_enabled
+    }
+
     pub async fn send_json<T>(&mut self, action: Action, payload: &T) -> Result<()>
     where
         T: Serialize,
     {
-        let frame = encode_text_frame(action, payload)?;
-        self.stream.send(Message::Text(frame.into())).await?;
+        if self.protobuf_enabled {
+            let frame = encode_protobuf_frame(action, payload)?;
+            self.stream.send(Message::Binary(frame.into())).await?;
+        } else {
+            let frame = encode_text_frame(action, payload)?;
+            self.stream.send(Message::Text(frame.into())).await?;
+        }
         Ok(())
     }
 
@@ -92,6 +116,10 @@ impl FnsWsClient {
         if frame.prefix_str() == BINARY_PREFIX_FILE_SYNC {
             let chunk = decode_file_chunk_payload(frame.payload())?;
             return Ok(WsEvent::FileChunk(chunk));
+        }
+
+        if frame.prefix_str() == fns_protocol::PROTOBUF_BINARY_PREFIX {
+            return Ok(WsEvent::Text(decode_protobuf_frame(frame.payload())?));
         }
 
         Ok(WsEvent::Binary(frame))

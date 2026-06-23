@@ -10,6 +10,7 @@ mod file;
 mod folder;
 mod frame;
 mod note;
+mod protobuf;
 mod response;
 mod session;
 mod setting;
@@ -40,6 +41,10 @@ pub use note::{
     NoteSyncDelNote, NoteSyncDeleteMessage, NoteSyncEndMessage, NoteSyncModifyMessage,
     NoteSyncMtimeMessage, NoteSyncNeedPushMessage, NoteSyncRenameMessage, NoteSyncRequest,
     NoteUpdateCheckRequest,
+};
+pub use protobuf::{
+    PROTOBUF_BINARY_PREFIX, decode_protobuf_frame, encode_protobuf_client_info,
+    encode_protobuf_frame,
 };
 pub use response::WsResponse;
 pub use session::{ClientInfoMessage, OfflineSyncStrategy};

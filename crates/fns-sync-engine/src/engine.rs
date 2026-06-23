@@ -56,7 +56,10 @@ impl SyncEngine {
             "prepared local sync batches"
         );
 
-        let ws_url = self.config.server.ws_url()?;
+        let ws_url = self
+            .config
+            .server
+            .ws_url_with_protocol(self.config.client.protobuf)?;
         info!(server = %ws_url, "connecting websocket");
         let mut ws = FnsWsClient::connect(&ws_url).await?;
         debug!("sending authorization request");
@@ -64,7 +67,7 @@ impl SyncEngine {
         self.wait_for_authorization(&mut ws, &vault, &mut store)
             .await?;
         info!("authorization accepted");
-        ws.send_client_info(&self.client_info()).await?;
+        self.send_client_info(&mut ws, &vault, &mut store).await?;
         self.send_sync_requests(&mut ws, &vault_name, &batches)
             .await?;
 
@@ -104,6 +107,37 @@ impl SyncEngine {
         );
         info.protobuf = self.config.client.protobuf;
         info
+    }
+
+    async fn send_client_info(
+        &self,
+        ws: &mut FnsWsClient,
+        vault: &VaultFs,
+        store: &mut LocalStore,
+    ) -> Result<()> {
+        let info = self.client_info();
+        ws.send_client_info(&info).await?;
+
+        if !info.protobuf {
+            return Ok(());
+        }
+
+        loop {
+            match ws.next_event().await? {
+                WsEvent::Text(frame) if *frame.action() == Action::ClientInfo => {
+                    ws.enable_protobuf();
+                    debug!("protobuf protocol enabled");
+                    return Ok(());
+                }
+                WsEvent::Text(frame) => {
+                    let outcome = apply_text_event(&frame, vault, store)?;
+                    debug!(?outcome, "applied event while waiting for client info");
+                }
+                WsEvent::Ping(_) | WsEvent::Pong(_) => {}
+                WsEvent::Binary(_) | WsEvent::FileChunk(_) => {}
+                WsEvent::Closed => return Err(SyncEngineError::WebSocketClosed),
+            }
+        }
     }
 
     async fn send_sync_requests(

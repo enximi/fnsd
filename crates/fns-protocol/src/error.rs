@@ -20,6 +20,12 @@ pub enum ProtocolError {
     InvalidFileChunkSessionIdUtf8,
     #[error("json error: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("protobuf encode error: {0}")]
+    ProtobufEncode(#[from] prost::EncodeError),
+    #[error("protobuf decode error: {0}")]
+    ProtobufDecode(#[from] prost::DecodeError),
+    #[error("unsupported protobuf action: {0}")]
+    UnsupportedProtobufAction(String),
 }
 
 pub type Result<T> = std::result::Result<T, ProtocolError>;

@@ -136,6 +136,19 @@ impl ServerConfig {
             .map_err(|_| ConfigError::InvalidServerUrl)?;
         Ok(url.to_string())
     }
+
+    pub fn ws_url_with_protocol(&self, protobuf: bool) -> Result<String> {
+        let mut url = self.ws_url()?.parse::<Url>()?;
+        if protobuf {
+            let has_protocol = url.query_pairs().any(|(key, _)| key == "protocol");
+            if !has_protocol {
+                url.query_pairs_mut()
+                    .append_pair("protocol", "protobuf")
+                    .finish();
+            }
+        }
+        Ok(url.to_string())
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
