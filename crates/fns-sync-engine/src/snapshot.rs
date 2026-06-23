@@ -173,6 +173,10 @@ fn is_unchanged(
     last_time: RemoteMillis,
     store: &LocalStore,
 ) -> Result<bool> {
+    if store.has_pending_modify(kind, path) {
+        return Ok(false);
+    }
+
     if last_time.as_i64() == 0 || mtime >= last_time {
         return Ok(false);
     }

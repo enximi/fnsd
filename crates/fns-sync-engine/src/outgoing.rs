@@ -8,6 +8,7 @@ use fns_vault_fs::VaultFs;
 use fns_ws_client::FnsWsClient;
 use std::time::Duration;
 use tokio::time::timeout;
+use tracing::{debug, info};
 
 use crate::{Result, SyncEngineError};
 
@@ -18,6 +19,7 @@ pub(crate) async fn send_note_modify(
     store: &mut LocalStore,
     path: &VaultPath,
 ) -> Result<()> {
+    debug!(path = %path, "sending note modify");
     let content = vault.read_text(path)?;
     let metadata = vault.file_metadata(path)?;
     let content_hash = text_content_hash(&content);
@@ -50,6 +52,7 @@ pub(crate) async fn send_setting_modify(
     store: &mut LocalStore,
     path: &VaultPath,
 ) -> Result<()> {
+    debug!(path = %path, "sending setting modify");
     let content = vault.read_text(path)?;
     let metadata = vault.file_metadata(path)?;
     let content_hash = text_content_hash(&content);
@@ -84,12 +87,28 @@ pub(crate) async fn send_file_upload(
 ) -> Result<()> {
     let plan = build_upload_plan(vault, upload)?;
     let start_chunk_index = resume_start_chunk(store, &plan)?;
+    info!(
+        path = %plan.path,
+        session_id = %plan.session_id,
+        start_chunk = start_chunk_index,
+        total_chunks = plan.total_chunks,
+        size = plan.size,
+        "sending file upload"
+    );
 
     for chunk in &plan.chunks {
         if chunk.chunk_index() < start_chunk_index {
             continue;
         }
 
+        debug!(
+            path = %plan.path,
+            session_id = %plan.session_id,
+            chunk_index = chunk.chunk_index(),
+            total_chunks = plan.total_chunks,
+            bytes = chunk.chunk_data().len(),
+            "sending file chunk"
+        );
         send_file_chunk(ws, chunk, transfer_timeout).await?;
         if (chunk.chunk_index() as usize) + 1 < plan.total_chunks {
             store.set_file_upload_checkpoint(
@@ -113,6 +132,7 @@ pub(crate) async fn send_file_upload(
         plan.size,
     );
     store.save()?;
+    debug!(path = %plan.path, "file upload sent and pending state saved");
     Ok(())
 }
 
@@ -143,10 +163,17 @@ fn resume_start_chunk(store: &LocalStore, plan: &fns_file_transfer::UploadPlan) 
     };
 
     if checkpoint.session_id != plan.session_id {
+        debug!(
+            path = %plan.path,
+            checkpoint_session_id = %checkpoint.session_id,
+            upload_session_id = %plan.session_id,
+            "upload checkpoint ignored because session changed"
+        );
         return Ok(0);
     }
 
     if checkpoint.content_hash()?.as_str() != plan.content_hash.as_str() {
+        debug!(path = %plan.path, "upload checkpoint ignored because content hash changed");
         return Ok(0);
     }
 

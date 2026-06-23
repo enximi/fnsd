@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 use fns_core::{ResourceKind, VaultPath};
 use fns_file_transfer::DownloadSession;
 use fns_sync_plan::{FileDownload, FileUpload, RemoteFile};
+use tracing::{debug, warn};
 
 use crate::{Result, SyncEngineError};
 
@@ -28,6 +29,7 @@ impl TransferState {
     }
 
     pub fn enqueue(&mut self, transfer: QueuedTransfer) {
+        debug!(?transfer, "enqueue transfer");
         self.queued.push_back(transfer);
     }
 
@@ -120,6 +122,7 @@ impl TransferState {
             .iter()
             .find(|(_, transfer)| now.duration_since(transfer.started_at) > timeout)
         {
+            warn!(transfer = %key.description(), "transfer timed out");
             return Err(SyncEngineError::TransferTimeout(key.description()));
         }
 
@@ -128,6 +131,7 @@ impl TransferState {
             .iter()
             .find(|(_, transfer)| now.duration_since(transfer.started_at) > timeout)
         {
+            warn!(session_id = %session_id, "download session timed out");
             return Err(SyncEngineError::TransferTimeout(format!(
                 "download session {session_id}"
             )));

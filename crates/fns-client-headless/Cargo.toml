@@ -8,3 +8,6 @@ clap = { workspace = true }
 fns-config = { workspace = true }
 fns-sync-engine = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tracing = { workspace = true }
+tracing-appender = { workspace = true }
+tracing-subscriber = { workspace = true }

@@ -6,6 +6,7 @@ use fns_sync_apply::{EventApplySummary, EventOutcome, SyncEndTracker, apply_text
 use fns_vault_fs::VaultFs;
 use fns_ws_client::{FnsWsClient, WsEvent};
 use tokio::time::timeout;
+use tracing::{debug, info, warn};
 
 use crate::{
     Result, SyncEngine, SyncEngineError,
@@ -30,9 +31,12 @@ impl SyncEngine {
         while !tracker.is_complete() || transfers.has_pending_work()? {
             match self.next_event(ws).await? {
                 WsEvent::Text(frame) => {
+                    debug!(action = %frame.action().as_str(), "received text event");
                     let outcome = apply_text_event(&frame, vault, store)?;
+                    debug!(?outcome, "applied text event");
 
                     if let EventOutcome::SyncEnd { kind, .. } = outcome {
+                        info!(?kind, "sync end received");
                         tracker.mark(kind);
                     }
 
@@ -43,8 +47,16 @@ impl SyncEngine {
                     summary.add(&outcome);
                 }
                 WsEvent::Ping(_) | WsEvent::Pong(_) => {}
-                WsEvent::Binary(_) => {}
+                WsEvent::Binary(frame) => {
+                    debug!(prefix = %frame.prefix_str(), "received binary event");
+                }
                 WsEvent::FileChunk(chunk) => {
+                    debug!(
+                        session_id = chunk.session_id(),
+                        chunk_index = chunk.chunk_index(),
+                        bytes = chunk.chunk_data().len(),
+                        "received file chunk"
+                    );
                     handle_file_chunk(vault, store, &mut transfers, &checkpoints, chunk)?;
                     self.start_ready_transfers(ws, vault_name, vault, store, &mut transfers)
                         .await?;
@@ -71,18 +83,23 @@ impl SyncEngine {
     fn handle_transfer_outcome(&self, transfers: &mut TransferState, outcome: &EventOutcome) {
         match outcome {
             EventOutcome::NeedNoteUpload(resource) => {
+                debug!(path = %resource.path, "queue note upload");
                 transfers.enqueue(QueuedTransfer::NoteUpload(resource.path.clone()));
             }
             EventOutcome::NeedFileUpload(upload) => {
+                debug!(path = %upload.path, session_id = %upload.session_id, "queue file upload");
                 transfers.enqueue(QueuedTransfer::FileUpload(upload.clone()));
             }
             EventOutcome::NeedFileDownload(download) => {
+                debug!(path = %download.path, "queue file download request");
                 transfers.enqueue(QueuedTransfer::FileDownloadRequest(download.clone()));
             }
             EventOutcome::NeedFileDownloadSession(download) => {
+                debug!(path = %download.path, session_id = %download.session_id, "queue file download session");
                 transfers.enqueue(QueuedTransfer::FileDownloadSession(download.clone()));
             }
             EventOutcome::NeedSettingUpload(path) => {
+                debug!(path = %path, "queue setting upload");
                 transfers.enqueue(QueuedTransfer::SettingUpload(path.clone()));
             }
             _ => {}
@@ -115,6 +132,7 @@ impl SyncEngine {
         transfer: QueuedTransfer,
     ) -> Result<()> {
         let key = transfer.key();
+        debug!(?key, "starting transfer");
 
         match transfer {
             QueuedTransfer::NoteUpload(path) => {
@@ -126,6 +144,7 @@ impl SyncEngine {
             }
             QueuedTransfer::FileDownloadRequest(download) => {
                 let request = build_file_get_request(vault_name, &download);
+                debug!(path = %download.path, "requesting file download");
                 ws.send_json(Action::FileChunkDownload, &request).await?;
                 transfers.track_download_request(&download, key);
             }
@@ -133,6 +152,13 @@ impl SyncEngine {
                 let mut session = DownloadSession::new(download)?;
                 let checkpoints = DownloadCheckpointStore::new(store.path());
                 checkpoints.restore(&mut session)?;
+                debug!(
+                    path = %session.path(),
+                    session_id = session.session_id(),
+                    received = session.received_chunks(),
+                    total = session.total_chunks(),
+                    "restored download checkpoint"
+                );
 
                 if session.is_complete() {
                     finalize_download(vault, store, &checkpoints, session)?;
@@ -152,6 +178,7 @@ impl SyncEngine {
     fn release_transfer_slot(&self, transfers: &mut TransferState, outcome: &EventOutcome) {
         match outcome {
             EventOutcome::Ack { kind, path } if *kind != ResourceKind::Folder => {
+                debug!(?kind, path = %path, "transfer ack received");
                 transfers.finish(TransferKey::Resource(*kind, path.clone()));
             }
             _ => {}
@@ -168,6 +195,7 @@ fn handle_file_chunk(
 ) -> Result<()> {
     let session_id = chunk.session_id().to_string();
     let Some(session) = transfers.download_mut(&session_id) else {
+        warn!(session_id = %session_id, "ignored file chunk without active download session");
         return Ok(());
     };
 
@@ -179,6 +207,7 @@ fn handle_file_chunk(
             .take_download(&session_id)
             .expect("download session exists after successful chunk accept");
         finalize_download(vault, store, checkpoints, session)?;
+        info!(session_id = %session_id, "file download completed");
         transfers.finish(TransferKey::DownloadSession(session_id));
     }
 

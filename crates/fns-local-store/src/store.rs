@@ -129,6 +129,19 @@ impl LocalStore {
         }
     }
 
+    pub fn has_pending_modify(&self, kind: ResourceKind, path: &VaultPath) -> bool {
+        match kind {
+            ResourceKind::Note => self.state.pending.note_modifies.contains_key(path.as_str()),
+            ResourceKind::File => self.state.pending.file_uploads.contains_key(path.as_str()),
+            ResourceKind::Setting => self
+                .state
+                .pending
+                .setting_modifies
+                .contains_key(path.as_str()),
+            ResourceKind::Folder => false,
+        }
+    }
+
     pub fn file_upload_checkpoint(&self, path: &VaultPath) -> Option<&UploadCheckpoint> {
         self.state
             .pending

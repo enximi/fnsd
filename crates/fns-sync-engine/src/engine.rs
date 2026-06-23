@@ -9,6 +9,7 @@ use fns_sync_plan::{
 };
 use fns_vault_fs::{VaultFs, VaultScanOptions};
 use fns_ws_client::{ClientInfo, FnsWsClient, WsEvent};
+use tracing::{debug, info};
 
 use crate::{Result, SyncEngineError, snapshot::SyncBatches, transfer::TransferOptions};
 
@@ -37,20 +38,32 @@ impl SyncEngine {
     }
 
     pub async fn sync_once(&self) -> Result<SyncOnceSummary> {
+        info!(vault_root = %self.config.vault.root.display(), "starting sync once");
         let vault_name = self.config.vault_name()?;
         let scan_options = self.config.scan_options()?;
+        debug!("scanning vault");
         let snapshot = scan_vault(self.config.vault.root.clone(), scan_options).await?;
         let vault = VaultFs::new(&self.config.vault.root)?;
         let mut store = LocalStore::open(&self.config.store.path)?;
         let context = None;
         let batches =
             SyncBatches::from_snapshot(snapshot, &store, context, self.options.missing_path_mode)?;
+        info!(
+            notes = batches.notes.items.len(),
+            files = batches.files.items.len(),
+            folders = batches.folders.items.len(),
+            settings = batches.settings.items.len(),
+            "prepared local sync batches"
+        );
 
         let ws_url = self.config.server.ws_url()?;
+        info!(server = %ws_url, "connecting websocket");
         let mut ws = FnsWsClient::connect(&ws_url).await?;
+        debug!("sending authorization request");
         ws.authorize(self.config.server.api_token.clone()).await?;
         self.wait_for_authorization(&mut ws, &vault, &mut store)
             .await?;
+        info!("authorization accepted");
         ws.send_client_info(&self.client_info()).await?;
         self.send_sync_requests(&mut ws, &vault_name, &batches)
             .await?;
@@ -66,6 +79,14 @@ impl SyncEngine {
             .drain_sync_events(&mut ws, &vault_name, &vault, &mut store)
             .await?;
         store.save()?;
+        info!(
+            events = events.text_events,
+            remote_writes = events.remote_writes,
+            remote_deletes = events.remote_deletes,
+            remote_renames = events.remote_renames,
+            acks = events.acks,
+            "sync once completed"
+        );
 
         Ok(SyncOnceSummary {
             notes_sent: batches.notes.items.len(),
@@ -92,15 +113,31 @@ impl SyncEngine {
         batches: &SyncBatches,
     ) -> Result<()> {
         let folder_sync = build_folder_sync_request(vault_name, &batches.folders);
+        debug!(
+            items = batches.folders.items.len(),
+            "sending folder sync request"
+        );
         ws.send_json(Action::FolderSync, &folder_sync).await?;
 
         let note_sync = build_note_sync_request(vault_name, &batches.notes);
+        debug!(
+            items = batches.notes.items.len(),
+            "sending note sync request"
+        );
         ws.send_json(Action::NoteSync, &note_sync).await?;
 
         let file_sync = build_file_sync_request(vault_name, &batches.files)?;
+        debug!(
+            items = batches.files.items.len(),
+            "sending file sync request"
+        );
         ws.send_json(Action::FileSync, &file_sync).await?;
 
         let setting_sync = build_setting_sync_request(vault_name, &batches.settings);
+        debug!(
+            items = batches.settings.items.len(),
+            "sending setting sync request"
+        );
         ws.send_json(Action::SettingSync, &setting_sync).await?;
 
         Ok(())
