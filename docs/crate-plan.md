@@ -269,6 +269,8 @@
 
 ### `fns-config`
 
+状态：已创建
+
 定位：配置加载和校验。
 
 职责：
@@ -277,6 +279,7 @@
 - 合并环境变量和 CLI 覆盖项。
 - 解析路径。
 - 校验必要设置，例如 server URL、token、vault name 和 vault root。
+- 第一版支持 TOML 配置、环境变量覆盖和转换为 vault 扫描选项。
 
 不应该做：
 
