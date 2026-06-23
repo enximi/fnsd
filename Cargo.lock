@@ -14,6 +14,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fns-hash"
+version = "0.1.0"
+dependencies = [
+ "fns-core",
+]
+
+[[package]]
 name = "fns-protocol"
 version = "0.1.0"
 dependencies = [
