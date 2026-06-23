@@ -16,6 +16,7 @@ members = [
 resolver = "3"
 
 [workspace.dependencies]
+clap = { version = "4", features = ["derive"] }
 config = "0.15"
 filetime = "0.2"
 fns-config = { path = "crates/fns-config" }
