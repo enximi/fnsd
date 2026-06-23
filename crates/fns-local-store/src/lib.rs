@@ -10,6 +10,6 @@ mod state;
 mod store;
 
 pub use error::{LocalStoreError, Result};
-pub use pending::{PendingDelete, PendingModify, PendingRename, PendingState};
+pub use pending::{PendingDelete, PendingModify, PendingRename, PendingState, UploadCheckpoint};
 pub use state::{HashEntry, LocalStoreState, SyncTimes};
 pub use store::LocalStore;

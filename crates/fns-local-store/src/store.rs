@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use fns_core::{ContentHash, RemoteMillis, ResourceKind, VaultPath};
 
-use crate::{HashEntry, LocalStoreState, PendingRename, Result, error::io};
+use crate::{HashEntry, LocalStoreState, PendingRename, Result, UploadCheckpoint, error::io};
 
 #[derive(Debug, Clone)]
 pub struct LocalStore {
@@ -127,6 +127,27 @@ impl LocalStore {
             ResourceKind::Setting => self.state.pending.setting_modifies.remove(path.as_str()),
             ResourceKind::Folder => None,
         }
+    }
+
+    pub fn file_upload_checkpoint(&self, path: &VaultPath) -> Option<&UploadCheckpoint> {
+        self.state
+            .pending
+            .file_upload_checkpoints
+            .get(path.as_str())
+    }
+
+    pub fn set_file_upload_checkpoint(&mut self, path: &VaultPath, checkpoint: UploadCheckpoint) {
+        self.state
+            .pending
+            .file_upload_checkpoints
+            .insert(path.to_string(), checkpoint);
+    }
+
+    pub fn remove_file_upload_checkpoint(&mut self, path: &VaultPath) -> Option<UploadCheckpoint> {
+        self.state
+            .pending
+            .file_upload_checkpoints
+            .remove(path.as_str())
     }
 
     pub fn insert_pending_delete(&mut self, kind: ResourceKind, path: &VaultPath) {

@@ -38,6 +38,18 @@ impl VaultFs {
         std::fs::read(&absolute).map_err(|err| io(absolute, err))
     }
 
+    pub fn file_metadata(&self, path: &VaultPath) -> Result<VaultFileMetadata> {
+        let absolute = self.resolve_existing(path)?;
+        let metadata = std::fs::metadata(&absolute).map_err(|err| io(&absolute, err))?;
+
+        Ok(VaultFileMetadata {
+            size: metadata.len(),
+            ctime: system_time_millis(metadata.created().ok())
+                .unwrap_or_else(|| modified_millis(&metadata)),
+            mtime: modified_millis(&metadata),
+        })
+    }
+
     pub fn write_text(
         &self,
         path: &VaultPath,
@@ -159,6 +171,13 @@ pub struct VaultFileTimes {
     pub mtime: Option<RemoteMillis>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VaultFileMetadata {
+    pub size: u64,
+    pub ctime: RemoteMillis,
+    pub mtime: RemoteMillis,
+}
+
 impl VaultFileTimes {
     pub fn new(ctime: Option<RemoteMillis>, mtime: Option<RemoteMillis>) -> Self {
         Self { ctime, mtime }
@@ -178,4 +197,18 @@ fn set_modified_time(path: &Path, mtime: RemoteMillis) -> Result<()> {
     let nanos = ((mtime.as_i64() % 1000) * 1_000_000) as u32;
     let file_time = FileTime::from_unix_time(secs, nanos);
     filetime::set_file_mtime(path, file_time).map_err(|err| io(path, err))
+}
+
+fn modified_millis(metadata: &std::fs::Metadata) -> RemoteMillis {
+    metadata
+        .modified()
+        .ok()
+        .and_then(|time| system_time_millis(Some(time)))
+        .unwrap_or_else(|| RemoteMillis::new(0).expect("zero timestamp is valid"))
+}
+
+fn system_time_millis(time: Option<std::time::SystemTime>) -> Option<RemoteMillis> {
+    let duration = time?.duration_since(std::time::UNIX_EPOCH).ok()?;
+    let millis = i64::try_from(duration.as_millis()).ok()?;
+    RemoteMillis::new(millis).ok()
 }

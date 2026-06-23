@@ -21,11 +21,11 @@ pub use binary::{
 };
 pub use error::{ProtocolError, Result};
 pub use file::{
-    FileChunkDownloadRequest, FileDeleteAckMessage, FileDeleteRequest, FileGetRequest,
-    FileRenameAckMessage, FileRenameRequest, FileSyncCheckRequest, FileSyncDelFile,
-    FileSyncDeleteMessage, FileSyncDownloadMessage, FileSyncEndMessage, FileSyncModifyMessage,
-    FileSyncMtimeMessage, FileSyncRenameMessage, FileSyncRequest, FileSyncUploadMessage,
-    FileUploadAckMessage, FileUploadCheckRequest,
+    FileDeleteAckMessage, FileDeleteRequest, FileGetRequest, FileRenameAckMessage,
+    FileRenameRequest, FileSyncCheckRequest, FileSyncDelFile, FileSyncDeleteMessage,
+    FileSyncDownloadMessage, FileSyncEndMessage, FileSyncModifyMessage, FileSyncMtimeMessage,
+    FileSyncRenameMessage, FileSyncRequest, FileSyncUploadMessage, FileUploadAckMessage,
+    FileUploadCheckRequest,
 };
 pub use folder::{
     FolderCreateRequest, FolderDeleteAckMessage, FolderDeleteRequest, FolderModifyAckMessage,

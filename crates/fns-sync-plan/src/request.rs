@@ -1,8 +1,9 @@
-use fns_core::{VaultName, VaultPath};
+use fns_core::{ContentHash, RemoteMillis, VaultName, VaultPath};
 use fns_protocol::{
     FileSyncCheckRequest, FileSyncDelFile, FileSyncRequest, FolderSyncCheckRequest,
-    FolderSyncDelFolder, FolderSyncRequest, NoteSyncCheckRequest, NoteSyncDelNote, NoteSyncRequest,
-    SettingSyncCheckRequest, SettingSyncDelSetting, SettingSyncRequest,
+    FolderSyncDelFolder, FolderSyncRequest, NoteModifyOrCreateRequest, NoteSyncCheckRequest,
+    NoteSyncDelNote, NoteSyncRequest, SettingModifyOrCreateRequest, SettingSyncCheckRequest,
+    SettingSyncDelSetting, SettingSyncRequest,
 };
 
 use crate::{
@@ -68,6 +69,47 @@ pub fn build_setting_sync_request(
         del_settings: batch.deleted.iter().map(setting_deleted).collect(),
         missing_settings: batch.missing.iter().map(setting_deleted).collect(),
     }
+}
+
+pub fn build_note_modify_request(
+    vault: &VaultName,
+    path: &VaultPath,
+    content: String,
+    content_hash: &ContentHash,
+    ctime: RemoteMillis,
+    mtime: RemoteMillis,
+) -> Result<NoteModifyOrCreateRequest> {
+    Ok(NoteModifyOrCreateRequest {
+        vault: vault.to_string(),
+        path: path.to_string(),
+        path_hash: fns_hash::path_hash(path.as_str())?.to_string(),
+        base_hash: None,
+        base_hash_missing: false,
+        content,
+        content_hash: content_hash.to_string(),
+        ctime: ctime.as_i64(),
+        mtime: mtime.as_i64(),
+        create_only: false,
+    })
+}
+
+pub fn build_setting_modify_request(
+    vault: &VaultName,
+    path: &VaultPath,
+    content: String,
+    content_hash: &ContentHash,
+    ctime: RemoteMillis,
+    mtime: RemoteMillis,
+) -> Result<SettingModifyOrCreateRequest> {
+    Ok(SettingModifyOrCreateRequest {
+        vault: vault.to_string(),
+        path: path.to_string(),
+        path_hash: fns_hash::path_hash(path.as_str())?.to_string(),
+        content,
+        content_hash: content_hash.to_string(),
+        ctime: ctime.as_i64(),
+        mtime: mtime.as_i64(),
+    })
 }
 
 fn note_check(item: &TextResource) -> NoteSyncCheckRequest {

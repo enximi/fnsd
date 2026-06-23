@@ -1,0 +1,18 @@
+[package]
+name = "fns-sync-engine"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+fns-config = { workspace = true }
+fns-core = { workspace = true }
+fns-file-transfer = { workspace = true }
+fns-hash = { workspace = true }
+fns-local-store = { workspace = true }
+fns-protocol = { workspace = true }
+fns-sync-apply = { workspace = true }
+fns-sync-plan = { workspace = true }
+fns-vault-fs = { workspace = true }
+fns-ws-client = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["rt", "time"] }

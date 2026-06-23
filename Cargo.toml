@@ -3,9 +3,12 @@ members = [
     "crates/fns-client-headless",
     "crates/fns-config",
     "crates/fns-core",
+    "crates/fns-file-transfer",
     "crates/fns-hash",
     "crates/fns-local-store",
     "crates/fns-protocol",
+    "crates/fns-sync-apply",
+    "crates/fns-sync-engine",
     "crates/fns-sync-plan",
     "crates/fns-vault-fs",
     "crates/fns-ws-client",
@@ -17,10 +20,15 @@ config = "0.15"
 filetime = "0.2"
 fns-config = { path = "crates/fns-config" }
 fns-core = { path = "crates/fns-core" }
+fns-file-transfer = { path = "crates/fns-file-transfer" }
 fns-hash = { path = "crates/fns-hash" }
+fns-local-store = { path = "crates/fns-local-store" }
 fns-protocol = { path = "crates/fns-protocol" }
+fns-sync-apply = { path = "crates/fns-sync-apply" }
+fns-sync-engine = { path = "crates/fns-sync-engine" }
 fns-sync-plan = { path = "crates/fns-sync-plan" }
 fns-vault-fs = { path = "crates/fns-vault-fs" }
+fns-ws-client = { path = "crates/fns-ws-client" }
 futures-util = "0.3"
 regex = "1"
 serde = { version = "1", features = ["derive"] }

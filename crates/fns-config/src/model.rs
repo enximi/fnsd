@@ -14,6 +14,7 @@ pub struct AppConfig {
     pub vault: VaultConfig,
     pub store: StoreConfig,
     pub scan: ScanConfig,
+    pub sync: SyncConfig,
     pub client: ClientConfig,
 }
 
@@ -24,6 +25,7 @@ impl Default for AppConfig {
             vault: VaultConfig::default(),
             store: StoreConfig::default(),
             scan: ScanConfig::default(),
+            sync: SyncConfig::default(),
             client: ClientConfig::default(),
         }
     }
@@ -205,6 +207,26 @@ impl Default for ClientConfig {
             name: "fns-headless".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             protobuf: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct SyncConfig {
+    pub offline_delete_sync_enabled: bool,
+    pub transfer_concurrency_enabled: bool,
+    pub max_concurrent_transfers: usize,
+    pub transfer_timeout_seconds: u64,
+}
+
+impl Default for SyncConfig {
+    fn default() -> Self {
+        Self {
+            offline_delete_sync_enabled: false,
+            transfer_concurrency_enabled: true,
+            max_concurrent_transfers: 4,
+            transfer_timeout_seconds: 60 * 60,
         }
     }
 }

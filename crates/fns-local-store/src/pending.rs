@@ -13,6 +13,8 @@ pub struct PendingState {
     #[serde(default)]
     pub file_uploads: BTreeMap<String, String>,
     #[serde(default)]
+    pub file_upload_checkpoints: BTreeMap<String, UploadCheckpoint>,
+    #[serde(default)]
     pub setting_modifies: BTreeMap<String, String>,
     #[serde(default)]
     pub note_deletes: BTreeSet<String>,
@@ -34,6 +36,7 @@ impl PendingState {
     pub fn is_empty(&self) -> bool {
         self.note_modifies.is_empty()
             && self.file_uploads.is_empty()
+            && self.file_upload_checkpoints.is_empty()
             && self.setting_modifies.is_empty()
             && self.note_deletes.is_empty()
             && self.file_deletes.is_empty()
@@ -53,6 +56,32 @@ impl PendingState {
 pub struct PendingModify {
     pub path: VaultPath,
     pub content_hash: ContentHash,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UploadCheckpoint {
+    pub session_id: String,
+    pub content_hash: String,
+    pub last_chunk_index: u32,
+}
+
+impl UploadCheckpoint {
+    pub fn new(
+        session_id: impl Into<String>,
+        content_hash: ContentHash,
+        last_chunk_index: u32,
+    ) -> Self {
+        Self {
+            session_id: session_id.into(),
+            content_hash: content_hash.into_string(),
+            last_chunk_index,
+        }
+    }
+
+    pub fn content_hash(&self) -> Result<ContentHash> {
+        Ok(ContentHash::new(&self.content_hash)?)
+    }
 }
 
 impl PendingModify {

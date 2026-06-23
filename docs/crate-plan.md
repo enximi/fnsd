@@ -245,19 +245,24 @@
 
 ### `fns-sync-engine`
 
+状态：已创建
+
 定位：同步流程编排。
 
 职责：
 
-- 协调 vault 扫描、WebSocket 请求、同步计划、本地文件操作和本地元数据更新。
+- 协调 vault 扫描、WebSocket 请求、同步计划、事件应用和本地元数据保存。
 - 执行一次性同步。
 - 后续执行 watch 或 daemon 同步循环。
 - 依赖通过 trait 隔离，方便使用 fake 实现测试 engine。
+- 第一版提供一次性同步骨架：扫描 vault、构建 sync request、发送请求、
+  消费服务端文本事件并保存本地状态。
 
 不应该做：
 
 - 包含协议 DTO 定义。
 - 包含低层 WebSocket 实现。
+- 直接实现服务端事件到本地文件系统的应用细节。
 - 直接解析 CLI 参数。
 - 隐藏本应属于 `fns-sync-plan` 的同步决策。
 
@@ -266,6 +271,61 @@
 - 使用 fake transport、fake vault 和 fake store。
 - 不依赖真实网络测试完整流程。
 - 保留少量集成测试覆盖端到端行为。
+
+### `fns-sync-apply`
+
+状态：已创建
+
+定位：同步事件应用层。
+
+职责：
+
+- 把服务端文本 action 解码为同步操作。
+- 把远端 note、file、folder、setting 事件应用到 `VaultFs`。
+- 更新 `LocalStore` 中的同步时间、hash 索引和 pending 状态。
+- 返回明确的事件结果，例如远端写入、删除、重命名、ack、SyncEnd、
+  需要上传或需要下载。
+- 第一版处理文本事件；文件分片上传和下载只返回待处理结果。
+
+不应该做：
+
+- 打开 WebSocket 连接。
+- 扫描 vault。
+- 构建 sync request。
+- 实现文件分片传输会话。
+
+测试方式：
+
+- 使用 fake 或临时目录验证事件应用。
+- 覆盖四类资源的写入、删除、重命名、mtime 和 ack。
+- 文件传输完成前重点验证返回的 pending outcome。
+
+### `fns-file-transfer`
+
+状态：已创建
+
+定位：文件分片上传和下载会话。
+
+职责：
+
+- 根据服务端下发的上传会话，把本地文件切成 `FileChunkFrame`。
+- 根据服务端下发的下载会话，生成缺失 chunk 的下载请求。
+- 接收文件 chunk，组装完整文件。
+- 下载完成后校验文件大小和内容 hash。
+- 校验通过后把文件写入 `VaultFs` 并设置远端 mtime。
+
+不应该做：
+
+- 打开 WebSocket 连接。
+- 决定什么时候开始上传或下载。
+- 处理 note、folder、setting 文本事件。
+- 保存全局同步时间。
+
+测试方式：
+
+- 使用小文件和跨 chunk 文件验证切分与组装。
+- 验证缺失、重复、越界 chunk 的错误。
+- 验证 hash 和 size 不匹配时拒绝写入。
 
 ### `fns-config`
 
@@ -302,6 +362,8 @@
 fns-client-headless
   -> fns-config
   -> fns-sync-engine
+       -> fns-sync-apply
+       -> fns-file-transfer
        -> fns-sync-plan
        -> fns-ws-client
        -> fns-vault-fs

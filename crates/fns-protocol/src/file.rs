@@ -65,16 +65,6 @@ pub struct FileRenameRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FileChunkDownloadRequest {
-    pub vault: String,
-    pub path: String,
-    pub path_hash: String,
-    pub session_id: String,
-    pub chunk_index: i64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FileGetRequest {
     pub vault: String,
     pub path: String,

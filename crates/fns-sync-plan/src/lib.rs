@@ -19,8 +19,8 @@ pub use operation::{
     plan_setting_modify, plan_setting_mtime, plan_setting_need_upload,
 };
 pub use request::{
-    build_file_sync_request, build_folder_sync_request, build_note_sync_request,
-    build_setting_sync_request,
+    build_file_sync_request, build_folder_sync_request, build_note_modify_request,
+    build_note_sync_request, build_setting_modify_request, build_setting_sync_request,
 };
 pub use resource::{
     DeletedResource, FileResource, FolderResource, NoteResource, SettingResource, SyncBatch,

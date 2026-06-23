@@ -1,5 +1,5 @@
 [package]
-name = "fns-sync-plan"
+name = "fns-file-transfer"
 version = "0.1.0"
 edition = "2024"
 
@@ -7,4 +7,6 @@ edition = "2024"
 fns-core = { workspace = true }
 fns-hash = { workspace = true }
 fns-protocol = { workspace = true }
+fns-sync-plan = { workspace = true }
+fns-vault-fs = { workspace = true }
 thiserror = { workspace = true }
