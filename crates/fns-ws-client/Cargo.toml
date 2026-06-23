@@ -1,0 +1,12 @@
+[package]
+name = "fns-ws-client"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+fns-protocol = { workspace = true }
+futures-util = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["net"] }
+tokio-tungstenite = { workspace = true, features = ["rustls-tls-webpki-roots"] }
