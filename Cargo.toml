@@ -1,3 +1,6 @@
 [workspace]
-members = ["crates/fns-client-headless"]
+members = [
+    "crates/fns-client-headless",
+    "crates/fns-core",
+]
 resolver = "3"
