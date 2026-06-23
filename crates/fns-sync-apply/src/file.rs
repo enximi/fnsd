@@ -11,10 +11,10 @@ use fns_sync_plan::{
 };
 use fns_vault_fs::VaultFs;
 
-use crate::{EventOutcome, Result, local};
+use crate::{EventOutcome, Result, local, pending_sync_end_events};
 
 pub(crate) fn need_download(frame: &TextFrame) -> Result<EventOutcome> {
-    let message: FileSyncModifyMessage = frame.decode_payload()?;
+    let message: FileSyncModifyMessage = frame.decode_response_data()?;
     let FileOperation::Download(file) = plan_file_modify(&message)? else {
         unreachable!("file update planner must produce download operation");
     };
@@ -26,7 +26,7 @@ pub(crate) fn apply_delete(
     vault: &VaultFs,
     store: &mut LocalStore,
 ) -> Result<EventOutcome> {
-    let message: FileSyncDeleteMessage = frame.decode_payload()?;
+    let message: FileSyncDeleteMessage = frame.decode_response_data()?;
     let last_time = RemoteMillis::new(message.last_time)?;
     let FileOperation::Delete(resource) = plan_file_delete(&message)? else {
         unreachable!("file delete planner must produce delete operation");
@@ -39,7 +39,7 @@ pub(crate) fn apply_rename(
     vault: &VaultFs,
     store: &mut LocalStore,
 ) -> Result<EventOutcome> {
-    let message: FileSyncRenameMessage = frame.decode_payload()?;
+    let message: FileSyncRenameMessage = frame.decode_response_data()?;
     let FileOperation::Rename(rename) = plan_file_rename(&message)? else {
         unreachable!("file rename planner must produce rename operation");
     };
@@ -63,7 +63,7 @@ pub(crate) fn apply_mtime(
     vault: &VaultFs,
     store: &mut LocalStore,
 ) -> Result<EventOutcome> {
-    let message: FileSyncMtimeMessage = frame.decode_payload()?;
+    let message: FileSyncMtimeMessage = frame.decode_response_data()?;
     let FileOperation::UpdateMtime(update) = plan_file_mtime(&message)? else {
         unreachable!("file mtime planner must produce mtime operation");
     };
@@ -71,7 +71,7 @@ pub(crate) fn apply_mtime(
 }
 
 pub(crate) fn need_upload(frame: &TextFrame) -> Result<EventOutcome> {
-    let message: FileSyncUploadMessage = frame.decode_payload()?;
+    let message: FileSyncUploadMessage = frame.decode_response_data()?;
     let FileOperation::Upload(upload) = plan_file_upload(&message)? else {
         unreachable!("file upload planner must produce upload operation");
     };
@@ -79,7 +79,7 @@ pub(crate) fn need_upload(frame: &TextFrame) -> Result<EventOutcome> {
 }
 
 pub(crate) fn download_session(frame: &TextFrame) -> Result<EventOutcome> {
-    let message: FileSyncDownloadMessage = frame.decode_payload()?;
+    let message: FileSyncDownloadMessage = frame.decode_response_data()?;
     let FileOperation::ReceiveDownload(download) = plan_file_download(&message)? else {
         unreachable!("file download planner must produce receive-download operation");
     };
@@ -87,12 +87,22 @@ pub(crate) fn download_session(frame: &TextFrame) -> Result<EventOutcome> {
 }
 
 pub(crate) fn sync_end(frame: &TextFrame, store: &mut LocalStore) -> Result<EventOutcome> {
-    let message: FileSyncEndMessage = frame.decode_payload()?;
-    local::sync_end(ResourceKind::File, message.last_time, store)
+    let message: FileSyncEndMessage = frame.decode_response_data()?;
+    local::sync_end(
+        ResourceKind::File,
+        message.last_time,
+        pending_sync_end_events(
+            message.need_upload_count,
+            message.need_modify_count,
+            message.need_sync_mtime_count,
+            message.need_delete_count,
+        ),
+        store,
+    )
 }
 
 pub(crate) fn upload_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<EventOutcome> {
-    let message: FileUploadAckMessage = frame.decode_payload()?;
+    let message: FileUploadAckMessage = frame.decode_response_data()?;
     let path = VaultPath::new(&message.path)?;
     let last_time = RemoteMillis::new(message.last_time)?;
     store.remove_pending_modify(ResourceKind::File, &path);
@@ -105,7 +115,7 @@ pub(crate) fn upload_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<Ev
 }
 
 pub(crate) fn rename_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<EventOutcome> {
-    let message: FileRenameAckMessage = frame.decode_payload()?;
+    let message: FileRenameAckMessage = frame.decode_response_data()?;
     let path = VaultPath::new(&message.path)?;
     let last_time = RemoteMillis::new(message.last_time)?;
     local::commit_pending_rename(ResourceKind::File, &path, store)?;
@@ -117,6 +127,6 @@ pub(crate) fn rename_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<Ev
 }
 
 pub(crate) fn delete_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<EventOutcome> {
-    let message: FileDeleteAckMessage = frame.decode_payload()?;
+    let message: FileDeleteAckMessage = frame.decode_response_data()?;
     local::delete_ack(ResourceKind::File, &message.path, message.last_time, store)
 }

@@ -6,6 +6,10 @@ pub enum ProtocolError {
     MissingSeparator,
     #[error("unknown action: {0}")]
     UnknownAction(String),
+    #[error("response rejected: {0}")]
+    ResponseRejected(String),
+    #[error("response data is missing")]
+    MissingResponseData,
     #[error("binary frame prefix must be exactly 2 bytes")]
     InvalidBinaryPrefix,
     #[error("file chunk frame is shorter than 40 bytes")]

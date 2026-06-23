@@ -1,7 +1,7 @@
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use crate::{Action, ProtocolError, Result};
+use crate::{Action, ProtocolError, Result, WsResponse};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextFrame {
@@ -32,6 +32,19 @@ impl TextFrame {
         Ok(serde_json::from_str(&self.payload)?)
     }
 
+    pub fn decode_response_data<T>(&self) -> Result<T>
+    where
+        T: DeserializeOwned,
+    {
+        let response: WsResponse<T> = self.decode_payload()?;
+
+        if !response.status {
+            return Err(ProtocolError::ResponseRejected(response.message));
+        }
+
+        response.data.ok_or(ProtocolError::MissingResponseData)
+    }
+
     pub fn into_parts(self) -> (Action, String) {
         (self.action, self.payload)
     }
@@ -45,6 +58,10 @@ where
     let payload = serde_json::to_string(payload)?;
 
     Ok(format!("{action}|{payload}"))
+}
+
+pub fn encode_raw_text_frame(action: Action, payload: &str) -> String {
+    format!("{}|{}", action.as_str(), payload)
 }
 
 pub fn decode_text_frame(frame: &str) -> Result<TextFrame> {

@@ -1,7 +1,7 @@
 use fns_protocol::{
-    Action, AuthorizationRequest, BINARY_PREFIX_FILE_SYNC, ClientInfoMessage, FileChunkFrame,
-    decode_binary_frame, decode_file_chunk_payload, decode_text_frame, encode_binary_frame,
-    encode_file_chunk_payload, encode_text_frame,
+    Action, BINARY_PREFIX_FILE_SYNC, ClientInfoMessage, FileChunkFrame, decode_binary_frame,
+    decode_file_chunk_payload, decode_text_frame, encode_binary_frame, encode_file_chunk_payload,
+    encode_raw_text_frame, encode_text_frame,
 };
 use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
@@ -27,7 +27,7 @@ impl FnsWsClient {
     }
 
     pub async fn authorize(&mut self, token: impl Into<String>) -> Result<()> {
-        self.send_json(Action::Authorization, &AuthorizationRequest::new(token))
+        self.send_raw_text(Action::Authorization, &token.into())
             .await
     }
 
@@ -41,6 +41,12 @@ impl FnsWsClient {
         T: Serialize,
     {
         let frame = encode_text_frame(action, payload)?;
+        self.stream.send(Message::Text(frame.into())).await?;
+        Ok(())
+    }
+
+    pub async fn send_raw_text(&mut self, action: Action, payload: &str) -> Result<()> {
+        let frame = encode_raw_text_frame(action, payload);
         self.stream.send(Message::Text(frame.into())).await?;
         Ok(())
     }

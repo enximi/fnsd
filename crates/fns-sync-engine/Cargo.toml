@@ -17,3 +17,4 @@ fns-ws-client = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt", "time"] }
 tracing = { workspace = true }
+uuid = { workspace = true }

@@ -251,11 +251,11 @@ impl VaultFs {
                 return Ok(());
             }
 
-            let bytes = std::fs::read(&absolute).map_err(|err| io(&absolute, err))?;
+            let content = std::fs::read_to_string(&absolute).map_err(|err| io(&absolute, err))?;
             snapshot.settings.push(SettingResource {
                 path: path.clone(),
                 path_hash: path_hash(path.as_str())?,
-                content_hash: file_content_hash(&bytes),
+                content_hash: text_content_hash(&content),
                 ctime: created_millis(&metadata),
                 mtime: modified_millis(&metadata),
             });

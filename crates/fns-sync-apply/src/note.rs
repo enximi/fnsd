@@ -11,14 +11,14 @@ use fns_sync_plan::{
 };
 use fns_vault_fs::VaultFs;
 
-use crate::{EventOutcome, Result, local};
+use crate::{EventOutcome, Result, local, pending_sync_end_events};
 
 pub(crate) fn apply_modify(
     frame: &TextFrame,
     vault: &VaultFs,
     store: &mut LocalStore,
 ) -> Result<EventOutcome> {
-    let message: NoteSyncModifyMessage = frame.decode_payload()?;
+    let message: NoteSyncModifyMessage = frame.decode_response_data()?;
     let NoteOperation::Write(text) = plan_note_modify(&message)? else {
         unreachable!("note modify planner must produce write operation");
     };
@@ -30,7 +30,7 @@ pub(crate) fn apply_delete(
     vault: &VaultFs,
     store: &mut LocalStore,
 ) -> Result<EventOutcome> {
-    let message: NoteSyncDeleteMessage = frame.decode_payload()?;
+    let message: NoteSyncDeleteMessage = frame.decode_response_data()?;
     let last_time = RemoteMillis::new(message.last_time)?;
     let NoteOperation::Delete(resource) = plan_note_delete(&message)? else {
         unreachable!("note delete planner must produce delete operation");
@@ -43,7 +43,7 @@ pub(crate) fn apply_rename(
     vault: &VaultFs,
     store: &mut LocalStore,
 ) -> Result<EventOutcome> {
-    let message: NoteSyncRenameMessage = frame.decode_payload()?;
+    let message: NoteSyncRenameMessage = frame.decode_response_data()?;
     let NoteOperation::Rename(rename) = plan_note_rename(&message)? else {
         unreachable!("note rename planner must produce rename operation");
     };
@@ -55,7 +55,7 @@ pub(crate) fn apply_mtime(
     vault: &VaultFs,
     store: &mut LocalStore,
 ) -> Result<EventOutcome> {
-    let message: NoteSyncMtimeMessage = frame.decode_payload()?;
+    let message: NoteSyncMtimeMessage = frame.decode_response_data()?;
     let NoteOperation::UpdateMtime(update) = plan_note_mtime(&message)? else {
         unreachable!("note mtime planner must produce mtime operation");
     };
@@ -63,7 +63,7 @@ pub(crate) fn apply_mtime(
 }
 
 pub(crate) fn need_push(frame: &TextFrame) -> Result<EventOutcome> {
-    let message: NoteSyncNeedPushMessage = frame.decode_payload()?;
+    let message: NoteSyncNeedPushMessage = frame.decode_response_data()?;
     let NoteOperation::Upload(resource) = plan_note_need_push(&message)? else {
         unreachable!("note need-push planner must produce upload operation");
     };
@@ -71,12 +71,22 @@ pub(crate) fn need_push(frame: &TextFrame) -> Result<EventOutcome> {
 }
 
 pub(crate) fn sync_end(frame: &TextFrame, store: &mut LocalStore) -> Result<EventOutcome> {
-    let message: NoteSyncEndMessage = frame.decode_payload()?;
-    local::sync_end(ResourceKind::Note, message.last_time, store)
+    let message: NoteSyncEndMessage = frame.decode_response_data()?;
+    local::sync_end(
+        ResourceKind::Note,
+        message.last_time,
+        pending_sync_end_events(
+            message.need_upload_count,
+            message.need_modify_count,
+            message.need_sync_mtime_count,
+            message.need_delete_count,
+        ),
+        store,
+    )
 }
 
 pub(crate) fn modify_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<EventOutcome> {
-    let message: NoteModifyAckMessage = frame.decode_payload()?;
+    let message: NoteModifyAckMessage = frame.decode_response_data()?;
     let path = VaultPath::new(&message.path)?;
     let last_time = RemoteMillis::new(message.last_time)?;
     store.remove_pending_modify(ResourceKind::Note, &path);
@@ -88,7 +98,7 @@ pub(crate) fn modify_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<Ev
 }
 
 pub(crate) fn rename_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<EventOutcome> {
-    let message: NoteRenameAckMessage = frame.decode_payload()?;
+    let message: NoteRenameAckMessage = frame.decode_response_data()?;
     let path = VaultPath::new(&message.path)?;
     let last_time = RemoteMillis::new(message.last_time)?;
     local::commit_pending_rename(ResourceKind::Note, &path, store)?;
@@ -100,6 +110,6 @@ pub(crate) fn rename_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<Ev
 }
 
 pub(crate) fn delete_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<EventOutcome> {
-    let message: NoteDeleteAckMessage = frame.decode_payload()?;
+    let message: NoteDeleteAckMessage = frame.decode_response_data()?;
     local::delete_ack(ResourceKind::Note, &message.path, message.last_time, store)
 }

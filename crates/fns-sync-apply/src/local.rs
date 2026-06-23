@@ -114,11 +114,16 @@ pub(crate) fn rename_path(
 pub(crate) fn sync_end(
     kind: ResourceKind,
     last_time: i64,
+    pending_events: usize,
     store: &mut LocalStore,
 ) -> Result<EventOutcome> {
     let last_time = RemoteMillis::new(last_time)?;
     store.set_sync_time(kind, last_time);
-    Ok(EventOutcome::SyncEnd { kind, last_time })
+    Ok(EventOutcome::SyncEnd {
+        kind,
+        last_time,
+        pending_events,
+    })
 }
 
 pub(crate) fn ack(

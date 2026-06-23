@@ -65,6 +65,7 @@ pub enum EventOutcome {
     SyncEnd {
         kind: ResourceKind,
         last_time: RemoteMillis,
+        pending_events: usize,
     },
     NeedNoteUpload(DeletedResource),
     NeedFileUpload(FileUpload),
@@ -95,4 +96,21 @@ impl SyncEndTracker {
     pub fn is_complete(&self) -> bool {
         self.note && self.file && self.folder && self.setting
     }
+}
+
+pub fn pending_sync_end_events(
+    need_upload_count: i64,
+    need_modify_count: i64,
+    need_sync_mtime_count: i64,
+    need_delete_count: i64,
+) -> usize {
+    [
+        need_upload_count,
+        need_modify_count,
+        need_sync_mtime_count,
+        need_delete_count,
+    ]
+    .into_iter()
+    .filter_map(|value| usize::try_from(value).ok())
+    .sum()
 }

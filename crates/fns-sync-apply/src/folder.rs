@@ -8,14 +8,14 @@ use fns_protocol::{
 use fns_sync_plan::{FolderOperation, plan_folder_delete, plan_folder_modify, plan_folder_rename};
 use fns_vault_fs::VaultFs;
 
-use crate::{EventOutcome, Result, local};
+use crate::{EventOutcome, Result, local, pending_sync_end_events};
 
 pub(crate) fn apply_modify(
     frame: &TextFrame,
     vault: &VaultFs,
     store: &mut LocalStore,
 ) -> Result<EventOutcome> {
-    let message: FolderSyncModifyMessage = frame.decode_payload()?;
+    let message: FolderSyncModifyMessage = frame.decode_response_data()?;
     let FolderOperation::Create(folder) = plan_folder_modify(&message)? else {
         unreachable!("folder modify planner must produce create operation");
     };
@@ -33,7 +33,7 @@ pub(crate) fn apply_delete(
     vault: &VaultFs,
     store: &mut LocalStore,
 ) -> Result<EventOutcome> {
-    let message: FolderSyncDeleteMessage = frame.decode_payload()?;
+    let message: FolderSyncDeleteMessage = frame.decode_response_data()?;
     let last_time = RemoteMillis::new(message.last_time)?;
     let FolderOperation::Delete(resource) = plan_folder_delete(&message)? else {
         unreachable!("folder delete planner must produce delete operation");
@@ -52,7 +52,7 @@ pub(crate) fn apply_rename(
     vault: &VaultFs,
     store: &mut LocalStore,
 ) -> Result<EventOutcome> {
-    let message: FolderSyncRenameMessage = frame.decode_payload()?;
+    let message: FolderSyncRenameMessage = frame.decode_response_data()?;
     let FolderOperation::Rename(rename) = plan_folder_rename(&message)? else {
         unreachable!("folder rename planner must produce rename operation");
     };
@@ -72,12 +72,17 @@ pub(crate) fn apply_rename(
 }
 
 pub(crate) fn sync_end(frame: &TextFrame, store: &mut LocalStore) -> Result<EventOutcome> {
-    let message: FolderSyncEndMessage = frame.decode_payload()?;
-    local::sync_end(ResourceKind::Folder, message.last_time, store)
+    let message: FolderSyncEndMessage = frame.decode_response_data()?;
+    local::sync_end(
+        ResourceKind::Folder,
+        message.last_time,
+        pending_sync_end_events(0, message.need_modify_count, 0, message.need_delete_count),
+        store,
+    )
 }
 
 pub(crate) fn modify_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<EventOutcome> {
-    let message: FolderModifyAckMessage = frame.decode_payload()?;
+    let message: FolderModifyAckMessage = frame.decode_response_data()?;
     local::ack(
         ResourceKind::Folder,
         &message.path,
@@ -87,7 +92,7 @@ pub(crate) fn modify_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<Ev
 }
 
 pub(crate) fn rename_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<EventOutcome> {
-    let message: FolderRenameAckMessage = frame.decode_payload()?;
+    let message: FolderRenameAckMessage = frame.decode_response_data()?;
     let path = VaultPath::new(&message.path)?;
     let last_time = RemoteMillis::new(message.last_time)?;
     local::commit_pending_rename(ResourceKind::Folder, &path, store)?;
@@ -99,7 +104,7 @@ pub(crate) fn rename_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<Ev
 }
 
 pub(crate) fn delete_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<EventOutcome> {
-    let message: FolderDeleteAckMessage = frame.decode_payload()?;
+    let message: FolderDeleteAckMessage = frame.decode_response_data()?;
     local::delete_ack(
         ResourceKind::Folder,
         &message.path,

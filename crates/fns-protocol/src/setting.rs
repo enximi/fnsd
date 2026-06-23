@@ -11,6 +11,7 @@ pub struct SettingSyncRequest {
     pub settings: Vec<SettingSyncCheckRequest>,
     #[serde(default)]
     pub del_settings: Vec<SettingSyncDelSetting>,
+    #[serde(rename = "missingFiles")]
     #[serde(default)]
     pub missing_settings: Vec<SettingSyncDelSetting>,
 }

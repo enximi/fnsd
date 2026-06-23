@@ -1,20 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct AuthorizationRequest {
-    pub token: String,
-}
-
-impl AuthorizationRequest {
-    pub fn new(token: impl Into<String>) -> Self {
-        Self {
-            token: token.into(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClientInfoMessage {
     pub name: String,

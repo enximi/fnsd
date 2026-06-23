@@ -102,7 +102,7 @@ where
                 item.path(),
                 Some(item.content_hash()),
                 item.mtime(),
-                0,
+                None,
                 last_time,
                 store,
             ) {
@@ -127,7 +127,7 @@ fn filter_file_resources(
                 &item.path,
                 Some(&item.content_hash),
                 item.mtime,
-                item.size,
+                Some(item.size),
                 last_time,
                 store,
             ) {
@@ -152,7 +152,7 @@ fn filter_folder_resources(
                 &item.path,
                 None,
                 item.mtime,
-                0,
+                None,
                 last_time,
                 store,
             ) {
@@ -169,7 +169,7 @@ fn is_unchanged(
     path: &VaultPath,
     content_hash: Option<&ContentHash>,
     mtime: RemoteMillis,
-    size: u64,
+    size: Option<u64>,
     last_time: RemoteMillis,
     store: &LocalStore,
 ) -> Result<bool> {
@@ -185,7 +185,13 @@ fn is_unchanged(
         return Ok(false);
     };
 
-    if entry.mtime()? != mtime || entry.size != size {
+    if entry.mtime()? != mtime {
+        return Ok(false);
+    }
+
+    if let Some(size) = size
+        && entry.size != size
+    {
         return Ok(false);
     }
 

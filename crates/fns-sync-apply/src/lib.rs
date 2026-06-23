@@ -16,5 +16,5 @@ mod setting;
 
 pub use dispatch::apply_text_event;
 pub use error::{Result, SyncApplyError};
-pub use outcome::{EventApplySummary, EventOutcome, SyncEndTracker};
+pub use outcome::{EventApplySummary, EventOutcome, SyncEndTracker, pending_sync_end_events};
 pub use sent::refresh_sent_hash_index;

@@ -45,7 +45,7 @@ impl SyncEngine {
         let snapshot = scan_vault(self.config.vault.root.clone(), scan_options).await?;
         let vault = VaultFs::new(&self.config.vault.root)?;
         let mut store = LocalStore::open(&self.config.store.path)?;
-        let context = None;
+        let context = Some(uuid::Uuid::new_v4().to_string());
         let batches =
             SyncBatches::from_snapshot(snapshot, &store, context, self.options.missing_path_mode)?;
         info!(

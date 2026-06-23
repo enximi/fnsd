@@ -33,7 +33,7 @@ pub use folder::{
     FolderSyncDeleteMessage, FolderSyncEndMessage, FolderSyncModifyMessage,
     FolderSyncRenameMessage, FolderSyncRequest,
 };
-pub use frame::{TextFrame, decode_text_frame, encode_text_frame};
+pub use frame::{TextFrame, decode_text_frame, encode_raw_text_frame, encode_text_frame};
 pub use note::{
     NoteDeleteAckMessage, NoteDeleteRequest, NoteGetRequest, NoteModifyAckMessage,
     NoteModifyOrCreateRequest, NoteRenameAckMessage, NoteRenameRequest, NoteSyncCheckRequest,
@@ -42,7 +42,7 @@ pub use note::{
     NoteUpdateCheckRequest,
 };
 pub use response::WsResponse;
-pub use session::{AuthorizationRequest, ClientInfoMessage, OfflineSyncStrategy};
+pub use session::{ClientInfoMessage, OfflineSyncStrategy};
 pub use setting::{
     SettingClearRequest, SettingDeleteAckMessage, SettingDeleteRequest, SettingGetRequest,
     SettingModifyAckMessage, SettingModifyOrCreateRequest, SettingSyncCheckRequest,

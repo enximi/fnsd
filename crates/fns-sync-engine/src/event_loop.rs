@@ -27,17 +27,30 @@ impl SyncEngine {
         let mut summary = EventApplySummary::default();
         let mut transfers = TransferState::new(self.options().transfer);
         let checkpoints = DownloadCheckpointStore::new(store.path());
+        let mut pending_server_events = 0_usize;
 
-        while !tracker.is_complete() || transfers.has_pending_work()? {
+        while !tracker.is_complete() || pending_server_events > 0 || transfers.has_pending_work()? {
             match self.next_event(ws).await? {
                 WsEvent::Text(frame) => {
                     debug!(action = %frame.action().as_str(), "received text event");
                     let outcome = apply_text_event(&frame, vault, store)?;
                     debug!(?outcome, "applied text event");
 
-                    if let EventOutcome::SyncEnd { kind, .. } = outcome {
-                        info!(?kind, "sync end received");
+                    if !matches!(outcome, EventOutcome::SyncEnd { .. }) && pending_server_events > 0
+                    {
+                        pending_server_events = pending_server_events.saturating_sub(1);
+                    }
+
+                    if let EventOutcome::SyncEnd {
+                        kind,
+                        pending_events,
+                        ..
+                    } = outcome
+                    {
+                        info!(?kind, pending_events, "sync end received");
                         tracker.mark(kind);
+                        pending_server_events =
+                            pending_server_events.saturating_add(pending_events);
                     }
 
                     self.handle_transfer_outcome(&mut transfers, &outcome);
