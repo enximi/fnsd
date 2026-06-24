@@ -4,13 +4,13 @@
 //! 策略应在这里保持显式，底层工作交给更窄的模块。
 
 mod checkpoint;
-mod engine;
 mod error;
 mod event_loop;
 mod outgoing;
 mod snapshot;
+mod sync_once;
 mod transfer_queue;
 
-pub use engine::{MissingPathMode, SyncEngine};
 pub use error::{Result, SyncEngineError};
+pub use sync_once::{MissingPathMode, SyncEngine};
 pub use transfer_queue::TransferOptions;

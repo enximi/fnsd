@@ -4,11 +4,11 @@
 //! 它不读取文件，不打开 socket，不持久化状态，也不执行返回的操作。
 
 mod error;
-mod operation;
+mod remote_event;
 mod request;
 
 pub use error::{PlanError, Result};
-pub use operation::{
+pub use remote_event::{
     FileDownload, FileOperation, FileUpload, FolderOperation, MtimeUpdate, NoteOperation,
     RemoteFile, RemoteText, RemoteTextRename, SettingOperation, plan_file_delete,
     plan_file_download, plan_file_modify, plan_file_mtime, plan_file_rename, plan_file_upload,

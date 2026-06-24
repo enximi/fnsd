@@ -4,11 +4,11 @@
 //! 它不读取 vault 内容，不连接服务器，也不判断同步冲突。
 
 mod error;
+mod local_store;
 mod pending;
 mod state;
-mod store;
 
 pub use error::{LocalStoreError, Result};
+pub use local_store::LocalStore;
 pub use pending::{PendingRename, PendingState, UploadCheckpoint};
 pub use state::{HashEntry, LocalStoreState};
-pub use store::LocalStore;

@@ -10,10 +10,10 @@ mod folder;
 mod local;
 mod note;
 mod outcome;
-mod sent;
+mod sent_index;
 mod setting;
 
 pub use dispatch::apply_text_event;
 pub use error::{Result, SyncApplyError};
 pub use outcome::{EventApplySummary, EventOutcome, SyncEndTracker, pending_sync_end_events};
-pub use sent::refresh_sent_hash_index;
+pub use sent_index::refresh_sent_hash_index;

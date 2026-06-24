@@ -1,20 +1,26 @@
-use std::{collections::BTreeSet, time::Duration};
+use std::time::Duration;
 
 use crate::config::AppConfig;
-use crate::core::{ResourceKind, VaultName, VaultPath};
+use crate::core::VaultName;
 use crate::protocol::Action;
 use crate::store::LocalStore;
 use crate::sync::apply::{EventOutcome, apply_text_event};
 use crate::sync::engine::{SyncEngine, TransferOptions};
-use crate::sync::transfer::{DownloadSession, build_file_get_request, build_upload_plan};
+use crate::sync::transfer::build_file_get_request;
 use crate::vault::fs::VaultFs;
 use crate::vault::watch::VaultWatchEvent;
 use crate::ws::{ClientDescriptor, WebSocketClient, WsEvent};
 use tokio::sync::mpsc;
 use tokio::time::{Instant, sleep_until};
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
-use crate::sync::session::{Result, SyncSessionError, local_change::send_local_changes};
+use crate::sync::session::{
+    Result, SyncSessionError,
+    echo::RemoteEchoes,
+    file_transfer::{ActiveDownloads, send_file_upload},
+    local_change::send_local_changes,
+    pending_watch::PendingWatchEvents,
+};
 
 #[derive(Debug)]
 pub struct SyncSession {
@@ -217,286 +223,6 @@ fn handle_command(
     Ok(())
 }
 
-#[derive(Debug, Default)]
-struct RemoteEchoes {
-    renames: Vec<EchoRename>,
-}
-
-impl RemoteEchoes {
-    fn record_outcome(&mut self, outcome: &EventOutcome) {
-        match outcome {
-            EventOutcome::RemoteWrite { .. }
-            | EventOutcome::RemoteDelete { .. }
-            | EventOutcome::RemoteMtimeUpdate { .. } => {}
-            EventOutcome::RemoteRename {
-                kind,
-                old_path,
-                new_path,
-            } => {
-                self.record_rename(*kind, old_path.clone(), new_path.clone());
-            }
-            EventOutcome::AuthorizationAccepted
-            | EventOutcome::Ack { .. }
-            | EventOutcome::SyncEnd { .. }
-            | EventOutcome::NoteUploadRequested(_)
-            | EventOutcome::FileUploadRequested(_)
-            | EventOutcome::FileDownloadRequested(_)
-            | EventOutcome::FileDownloadSessionReady(_)
-            | EventOutcome::SettingUploadRequested(_)
-            | EventOutcome::Ignored => {}
-        }
-    }
-
-    fn record_rename(&mut self, kind: ResourceKind, old_path: VaultPath, new_path: VaultPath) {
-        self.renames.push(EchoRename {
-            kind,
-            old_path,
-            new_path,
-            old_seen: false,
-            new_seen: false,
-            expires_at: echo_expires_at(),
-        });
-    }
-
-    fn consume(&mut self, event: &VaultWatchEvent) -> bool {
-        self.prune_expired();
-
-        match event {
-            VaultWatchEvent::Changed { path } => self.consume_rename_changed(path),
-            VaultWatchEvent::RenameFrom { path } => self.consume_rename_from(path),
-            VaultWatchEvent::RenameTo { path } => self.consume_rename_to(path),
-            VaultWatchEvent::Renamed { old_path, new_path } => {
-                self.consume_rename(old_path, new_path)
-            }
-            VaultWatchEvent::RescanNeeded => false,
-        }
-    }
-
-    fn consume_rename_changed(&mut self, path: &VaultPath) -> bool {
-        let Some(index) = self
-            .renames
-            .iter_mut()
-            .position(|echo| echo.mark_changed(path))
-        else {
-            return false;
-        };
-        if self.renames[index].is_complete() {
-            self.renames.remove(index);
-        }
-        true
-    }
-
-    fn consume_rename_from(&mut self, path: &VaultPath) -> bool {
-        self.consume_rename_side(path, RenameEchoSide::Old)
-    }
-
-    fn consume_rename_to(&mut self, path: &VaultPath) -> bool {
-        self.consume_rename_side(path, RenameEchoSide::New)
-    }
-
-    fn consume_rename_side(&mut self, path: &VaultPath, side: RenameEchoSide) -> bool {
-        let Some(index) = self
-            .renames
-            .iter_mut()
-            .position(|echo| echo.mark_side(path, side))
-        else {
-            return false;
-        };
-        if self.renames[index].is_complete() {
-            self.renames.remove(index);
-        }
-        true
-    }
-
-    fn consume_rename(&mut self, old_path: &VaultPath, new_path: &VaultPath) -> bool {
-        let Some(index) = self
-            .renames
-            .iter()
-            .position(|echo| echo.matches_rename(old_path, new_path))
-        else {
-            return false;
-        };
-        self.renames.remove(index);
-        true
-    }
-
-    fn prune_expired(&mut self) {
-        let now = Instant::now();
-        self.renames.retain(|echo| echo.expires_at > now);
-    }
-}
-
-#[derive(Debug)]
-struct EchoRename {
-    kind: ResourceKind,
-    old_path: VaultPath,
-    new_path: VaultPath,
-    old_seen: bool,
-    new_seen: bool,
-    expires_at: Instant,
-}
-
-impl EchoRename {
-    fn mark_changed(&mut self, path: &VaultPath) -> bool {
-        let old_matches = paths_match(self.kind, &self.old_path, path);
-        let new_matches = paths_match(self.kind, &self.new_path, path);
-        self.old_seen |= old_matches;
-        self.new_seen |= new_matches;
-        old_matches || new_matches
-    }
-
-    fn mark_side(&mut self, path: &VaultPath, side: RenameEchoSide) -> bool {
-        let matches = match side {
-            RenameEchoSide::Old => paths_match(self.kind, &self.old_path, path),
-            RenameEchoSide::New => paths_match(self.kind, &self.new_path, path),
-        };
-        if !matches {
-            return false;
-        }
-
-        match side {
-            RenameEchoSide::Old => self.old_seen = true,
-            RenameEchoSide::New => self.new_seen = true,
-        }
-        true
-    }
-
-    fn matches_rename(&self, old_path: &VaultPath, new_path: &VaultPath) -> bool {
-        paths_match(self.kind, &self.old_path, old_path)
-            && paths_match(self.kind, &self.new_path, new_path)
-    }
-
-    fn is_complete(&self) -> bool {
-        self.old_seen && self.new_seen
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum RenameEchoSide {
-    Old,
-    New,
-}
-
-fn paths_match(kind: ResourceKind, expected: &VaultPath, actual: &VaultPath) -> bool {
-    expected == actual || (kind == ResourceKind::Folder && is_child_path(expected, actual))
-}
-
-fn is_child_path(parent: &VaultPath, path: &VaultPath) -> bool {
-    path.as_str()
-        .strip_prefix(parent.as_str())
-        .is_some_and(|suffix| suffix.starts_with('/'))
-}
-
-fn echo_expires_at() -> Instant {
-    Instant::now() + Duration::from_secs(10)
-}
-
-#[derive(Debug, Default)]
-struct PendingWatchEvents {
-    paths: BTreeSet<crate::core::VaultPath>,
-    rename_from: Vec<crate::core::VaultPath>,
-    rename_to: Vec<crate::core::VaultPath>,
-    renames: Vec<(crate::core::VaultPath, crate::core::VaultPath)>,
-    rescan_needed: bool,
-}
-
-impl PendingWatchEvents {
-    fn push(&mut self, event: VaultWatchEvent) {
-        match event {
-            VaultWatchEvent::Changed { path } => {
-                if self
-                    .renames
-                    .iter()
-                    .any(|(old_path, new_path)| old_path == &path || new_path == &path)
-                {
-                    return;
-                }
-                self.paths.insert(path);
-            }
-            VaultWatchEvent::RenameFrom { path } => {
-                if self.renames.iter().any(|(old_path, _)| old_path == &path) {
-                    return;
-                }
-                self.paths.remove(&path);
-                if let Some(new_path) = pop_front(&mut self.rename_to) {
-                    self.push_rename(path, new_path);
-                } else {
-                    self.rename_from.push(path);
-                }
-            }
-            VaultWatchEvent::RenameTo { path } => {
-                if self.renames.iter().any(|(_, new_path)| new_path == &path) {
-                    return;
-                }
-                self.paths.remove(&path);
-                if let Some(old_path) = pop_front(&mut self.rename_from) {
-                    self.push_rename(old_path, path);
-                } else {
-                    self.rename_to.push(path);
-                }
-            }
-            VaultWatchEvent::Renamed { old_path, new_path } => {
-                self.paths.remove(&old_path);
-                self.paths.remove(&new_path);
-                self.rename_from.retain(|path| path != &old_path);
-                self.rename_to.retain(|path| path != &new_path);
-                self.push_rename(old_path, new_path);
-            }
-            VaultWatchEvent::RescanNeeded => {
-                self.rescan_needed = true;
-            }
-        }
-    }
-
-    fn take_all(&mut self) -> Vec<VaultWatchEvent> {
-        let mut events = Vec::new();
-        if self.rescan_needed {
-            events.push(VaultWatchEvent::RescanNeeded);
-            self.rescan_needed = false;
-        }
-
-        events.extend(
-            std::mem::take(&mut self.renames)
-                .into_iter()
-                .map(|(old_path, new_path)| VaultWatchEvent::Renamed { old_path, new_path }),
-        );
-        events.extend(
-            std::mem::take(&mut self.rename_from)
-                .into_iter()
-                .map(|path| VaultWatchEvent::Changed { path }),
-        );
-        events.extend(
-            std::mem::take(&mut self.rename_to)
-                .into_iter()
-                .map(|path| VaultWatchEvent::Changed { path }),
-        );
-        events.extend(
-            std::mem::take(&mut self.paths)
-                .into_iter()
-                .map(|path| VaultWatchEvent::Changed { path }),
-        );
-        events
-    }
-
-    fn push_rename(&mut self, old_path: crate::core::VaultPath, new_path: crate::core::VaultPath) {
-        if self.renames.iter().any(|(existing_old, existing_new)| {
-            existing_old == &old_path && existing_new == &new_path
-        }) {
-            return;
-        }
-
-        self.renames.push((old_path, new_path));
-    }
-}
-
-fn pop_front<T>(items: &mut Vec<T>) -> Option<T> {
-    if items.is_empty() {
-        None
-    } else {
-        Some(items.remove(0))
-    }
-}
-
 fn drain_startup_watch_events(commands: &mut mpsc::Receiver<SyncSessionCommand>) {
     while commands.try_recv().is_ok() {}
 }
@@ -566,13 +292,7 @@ async fn handle_outcome(
             ws.send_json(Action::FileChunkDownload, &request).await?;
         }
         EventOutcome::FileDownloadSessionReady(download) => {
-            let session = DownloadSession::new(download)?;
-            warn!(
-                path = %session.path(),
-                session_id = session.session_id(),
-                "started long-lived file download session"
-            );
-            downloads.insert(session);
+            downloads.start(download)?;
         }
         EventOutcome::FileUploadRequested(upload) => {
             send_file_upload(ws, vault, store, &upload, transfer).await?;
@@ -604,84 +324,5 @@ async fn handle_outcome(
         _ => {}
     }
 
-    Ok(())
-}
-
-#[derive(Debug, Default)]
-struct ActiveDownloads {
-    sessions: std::collections::BTreeMap<String, DownloadSession>,
-}
-
-impl ActiveDownloads {
-    fn insert(&mut self, session: DownloadSession) {
-        self.sessions
-            .insert(session.session_id().to_string(), session);
-    }
-
-    fn accept_chunk(
-        &mut self,
-        vault: &VaultFs,
-        store: &mut LocalStore,
-        chunk: crate::protocol::FileChunkFrame,
-    ) -> Result<()> {
-        let session_id = chunk.session_id().to_string();
-        let Some(session) = self.sessions.get_mut(&session_id) else {
-            warn!(session_id = %session_id, "ignored file chunk without active session");
-            return Ok(());
-        };
-
-        session.accept_chunk(chunk)?;
-
-        if session.is_complete() {
-            let session = self
-                .sessions
-                .remove(&session_id)
-                .expect("download session exists after chunk accept");
-            let file = session.finalize(vault)?;
-            store.set_content_hash(
-                ResourceKind::File,
-                &file.path,
-                Some(file.content_hash),
-                file.mtime,
-                file.size,
-            );
-            store.save()?;
-        }
-
-        Ok(())
-    }
-}
-
-async fn send_file_upload(
-    ws: &mut WebSocketClient,
-    vault: &VaultFs,
-    store: &mut LocalStore,
-    upload: &crate::sync::plan::FileUpload,
-    transfer: TransferOptions,
-) -> Result<()> {
-    let plan = build_upload_plan(vault, upload)?;
-    for chunk in &plan.chunks {
-        if transfer.timeout.is_zero() {
-            ws.send_file_chunk(chunk).await?;
-        } else {
-            tokio::time::timeout(transfer.timeout, ws.send_file_chunk(chunk))
-                .await
-                .map_err(|_| SyncSessionError::WebSocketClosed)??;
-        }
-    }
-
-    store.set_pending_modify(
-        crate::core::ResourceKind::File,
-        &plan.path,
-        &plan.content_hash,
-    );
-    store.set_content_hash(
-        crate::core::ResourceKind::File,
-        &plan.path,
-        Some(plan.content_hash),
-        plan.mtime,
-        plan.size,
-    );
-    store.save()?;
     Ok(())
 }
