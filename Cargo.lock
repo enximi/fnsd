@@ -354,183 +354,22 @@ name = "fns-client-headless"
 version = "0.1.0"
 dependencies = [
  "clap",
- "fns-config",
- "fns-daemon",
- "fns-sync-engine",
- "tokio",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "fns-config"
-version = "0.1.0"
-dependencies = [
  "config",
- "fns-core",
- "fns-vault-fs",
- "serde",
- "thiserror",
- "url",
-]
-
-[[package]]
-name = "fns-core"
-version = "0.1.0"
-dependencies = [
- "thiserror",
-]
-
-[[package]]
-name = "fns-daemon"
-version = "0.1.0"
-dependencies = [
- "fns-config",
- "fns-sync-session",
- "fns-vault-fs",
- "fns-vault-watch",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "fns-file-transfer"
-version = "0.1.0"
-dependencies = [
- "fns-core",
- "fns-hash",
- "fns-protocol",
- "fns-sync-plan",
- "fns-vault-fs",
- "thiserror",
-]
-
-[[package]]
-name = "fns-hash"
-version = "0.1.0"
-dependencies = [
- "fns-core",
-]
-
-[[package]]
-name = "fns-local-store"
-version = "0.1.0"
-dependencies = [
- "fns-core",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "fns-protocol"
-version = "0.1.0"
-dependencies = [
- "prost",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "fns-sync-apply"
-version = "0.1.0"
-dependencies = [
- "fns-core",
- "fns-local-store",
- "fns-protocol",
- "fns-sync-plan",
- "fns-vault-fs",
- "thiserror",
-]
-
-[[package]]
-name = "fns-sync-engine"
-version = "0.1.0"
-dependencies = [
- "fns-config",
- "fns-core",
- "fns-file-transfer",
- "fns-hash",
- "fns-local-store",
- "fns-protocol",
- "fns-sync-apply",
- "fns-sync-plan",
- "fns-vault-fs",
- "fns-ws-client",
- "thiserror",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "fns-sync-plan"
-version = "0.1.0"
-dependencies = [
- "fns-core",
- "fns-hash",
- "fns-protocol",
- "thiserror",
-]
-
-[[package]]
-name = "fns-sync-session"
-version = "0.1.0"
-dependencies = [
- "fns-config",
- "fns-core",
- "fns-file-transfer",
- "fns-hash",
- "fns-local-store",
- "fns-protocol",
- "fns-sync-apply",
- "fns-sync-engine",
- "fns-sync-plan",
- "fns-vault-fs",
- "fns-vault-watch",
- "fns-ws-client",
- "thiserror",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "fns-vault-fs"
-version = "0.1.0"
-dependencies = [
  "filetime",
- "fns-core",
- "fns-hash",
- "fns-sync-plan",
- "regex",
- "thiserror",
-]
-
-[[package]]
-name = "fns-vault-watch"
-version = "0.1.0"
-dependencies = [
- "fns-core",
- "fns-vault-fs",
- "notify",
- "thiserror",
- "tracing",
-]
-
-[[package]]
-name = "fns-ws-client"
-version = "0.1.0"
-dependencies = [
- "fns-protocol",
  "futures-util",
+ "notify",
+ "prost",
+ "regex",
  "serde",
+ "serde_json",
  "thiserror",
  "tokio",
  "tokio-tungstenite",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+ "url",
+ "uuid",
 ]
 
 [[package]]
