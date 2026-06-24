@@ -22,7 +22,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
-        run: gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --generate-notes
+        run: gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes
 
   build-binaries:
     name: Build ${{ matrix.name }}
@@ -68,7 +68,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
-        run: gh release upload $env:TAG "dist/${{ matrix.archive }}" --clobber
+        run: gh release upload $env:TAG "dist/${{ matrix.archive }}" --repo $env:GITHUB_REPOSITORY --clobber
 
   build-image:
     name: Build Docker image
