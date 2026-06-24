@@ -48,7 +48,7 @@ pub(crate) fn hash_entry(
             Ok(HashEntry {
                 content_hash: row.get(0)?,
                 mtime: row.get(1)?,
-                size: row.get(2)?,
+                size: row.get::<_, i64>(2).and_then(size_from_i64)?,
             })
         },
     )
@@ -160,7 +160,7 @@ fn hash_tree_rows(
             HashEntry {
                 content_hash: row.get(1)?,
                 mtime: row.get(2)?,
-                size: row.get(3)?,
+                size: row.get::<_, i64>(3).and_then(size_from_i64)?,
             },
         ))
     })?;
@@ -186,4 +186,10 @@ fn renamed_path(path: &str, old_path: &str, new_path: &str) -> String {
         .strip_prefix(&old_prefix)
         .expect("hash tree query only returns matching descendants");
     format!("{new_prefix}{suffix}")
+}
+
+fn size_from_i64(value: i64) -> rusqlite::Result<u64> {
+    value
+        .try_into()
+        .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(0, value))
 }
