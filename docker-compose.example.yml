@@ -1,0 +1,16 @@
+services:
+  fnsd:
+    image: ghcr.io/enximi/fnsd:latest
+    container_name: fnsd
+    restart: unless-stopped
+    command:
+      - --config
+      - /data/fnsd.toml
+      - daemon
+      - run
+    environment:
+      FNSD_LOG: info
+      FNSD_LOG_FILE: /data/vault/.fnsd/fnsd.log
+    volumes:
+      - ./fnsd.toml:/data/fnsd.toml:ro
+      - /path/to/your/obsidian-vault:/data/vault

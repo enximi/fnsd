@@ -1,0 +1,56 @@
+[server]
+# Fast Note Sync server address. http/https will be converted to ws/wss.
+url = "https://sync.example.com"
+api_token = "paste-your-websocket-sync-token-here"
+
+[vault]
+name = "My Vault"
+root = "/data/vault"
+
+[store]
+# Relative paths are resolved from the current working directory.
+# Keep the default inside the mounted vault for simple backup and portability.
+path = "/data/vault/.fnsd/state.sqlite"
+
+[scan]
+# Obsidian config directory relative to the vault root.
+obsidian_config_dir = ".obsidian"
+
+# Extra config directories to scan recursively, relative to the vault root.
+custom_config_dirs = []
+
+# Rules use vault-relative paths. Detailed rules can opt into regex matching.
+ignore_rules = [
+  ".git",
+  ".obsidian/plugins/obsidian-fast-note-sync/data.json",
+  ".obsidian/community-plugins.json",
+  ".obsidian/workspace.json",
+  ".obsidian/workspace-mobile.json",
+]
+ignore_extensions = []
+whitelist_rules = []
+
+# Size limits. Set to a larger number if your vault contains large notes/files/settings.
+max_note_mb = 20
+max_file_mb = 50
+max_setting_mb = 50
+
+[sync]
+# false: missing local paths are reported as missing, and the server may push them back.
+# true: missing local paths are reported as deletes.
+offline_delete_sync_enabled = false
+
+# 1 means serial transfer; values greater than 1 allow concurrent transfer work.
+max_concurrent_transfers = 4
+transfer_timeout_seconds = 3600
+
+[daemon]
+watch_enabled = true
+debounce_ms = 1000
+retry_min_seconds = 5
+retry_max_seconds = 300
+
+[client]
+name = "fnsd"
+version = "0.1.0"
+protobuf = true

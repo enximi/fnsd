@@ -1,2 +1,5 @@
 /target
 fns-client-headless.code-workspace
+.tmp/
+.fnsd/
+fnsd.toml

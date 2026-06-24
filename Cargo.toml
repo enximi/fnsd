@@ -2,6 +2,9 @@
 name = "fnsd"
 version = "0.1.0"
 edition = "2024"
+description = "Headless Fast Note Sync client for syncing Obsidian vaults."
+license = "MIT"
+repository = "https://github.com/enximi/fnsd"
 
 [dependencies]
 clap = { version = "4", features = ["derive", "env"] }
