@@ -13,7 +13,7 @@ pub use error::{CoreError, Result};
 pub use hash::{ContentHash, PathHash};
 pub use path::{VaultName, VaultPath};
 pub use resource::{
-    DeletedResource, FileResource, FolderResource, NoteResource, ResourceId, ResourceKind,
-    SettingResource, SyncBatch, TextResource,
+    DeletedResource, FileResource, FolderResource, NoteResource, ResourceKind, SettingResource,
+    SyncBatch, TextResource,
 };
-pub use time::{RemoteMillis, UnixSeconds};
+pub use time::RemoteMillis;

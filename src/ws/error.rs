@@ -6,6 +6,4 @@ pub enum WsClientError {
     Protocol(#[from] crate::protocol::ProtocolError),
     #[error(transparent)]
     WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
-    #[error("websocket connection closed")]
-    Closed,
 }

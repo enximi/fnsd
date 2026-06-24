@@ -9,7 +9,7 @@ use crate::sync::engine::{SyncEngine, TransferOptions};
 use crate::sync::transfer::{DownloadSession, build_file_get_request, build_upload_plan};
 use crate::vault::fs::VaultFs;
 use crate::vault::watch::VaultWatchEvent;
-use crate::ws::{ClientInfo, FnsWsClient, WsEvent};
+use crate::ws::{ClientDescriptor, WebSocketClient, WsEvent};
 use tokio::sync::mpsc;
 use tokio::time::{Instant, sleep_until};
 use tracing::{debug, info, warn};
@@ -25,10 +25,6 @@ pub struct SyncSession {
 impl SyncSession {
     pub fn new(config: AppConfig) -> Self {
         let options = SyncSessionOptions::from_config(&config);
-        Self { config, options }
-    }
-
-    pub fn with_options(config: AppConfig, options: SyncSessionOptions) -> Self {
         Self { config, options }
     }
 
@@ -76,7 +72,7 @@ impl SyncSession {
 
     async fn startup_sync(
         &self,
-        ws: &mut FnsWsClient,
+        ws: &mut WebSocketClient,
         vault: &VaultFs,
         store: &mut LocalStore,
     ) -> Result<()> {
@@ -95,13 +91,13 @@ impl SyncSession {
         Ok(())
     }
 
-    async fn connect(&self, vault: &VaultFs, store: &mut LocalStore) -> Result<FnsWsClient> {
+    async fn connect(&self, vault: &VaultFs, store: &mut LocalStore) -> Result<WebSocketClient> {
         let ws_url = self
             .config
             .server
             .ws_url_with_protocol(self.config.client.protobuf)?;
         info!(server = %ws_url, "connecting long-lived websocket session");
-        let mut ws = FnsWsClient::connect(&ws_url).await?;
+        let mut ws = WebSocketClient::connect(&ws_url).await?;
         ws.authorize(self.config.server.api_token.clone()).await?;
         wait_for_authorization(&mut ws, vault, store).await?;
         send_client_info(&self.config, &mut ws, vault, store).await?;
@@ -110,7 +106,7 @@ impl SyncSession {
 
     async fn handle_pending_changes(
         &self,
-        ws: &mut FnsWsClient,
+        ws: &mut WebSocketClient,
         vault_name: &VaultName,
         vault: &VaultFs,
         store: &mut LocalStore,
@@ -131,7 +127,7 @@ impl SyncSession {
     async fn handle_ws_event(
         &self,
         event: WsEvent,
-        ws: &mut FnsWsClient,
+        ws: &mut WebSocketClient,
         vault_name: &VaultName,
         vault: &VaultFs,
         store: &mut LocalStore,
@@ -242,11 +238,11 @@ impl RemoteEchoes {
             EventOutcome::AuthorizationAccepted
             | EventOutcome::Ack { .. }
             | EventOutcome::SyncEnd { .. }
-            | EventOutcome::NeedNoteUpload(_)
-            | EventOutcome::NeedFileUpload(_)
-            | EventOutcome::NeedFileDownload(_)
-            | EventOutcome::NeedFileDownloadSession(_)
-            | EventOutcome::NeedSettingUpload(_)
+            | EventOutcome::NoteUploadRequested(_)
+            | EventOutcome::FileUploadRequested(_)
+            | EventOutcome::FileDownloadRequested(_)
+            | EventOutcome::FileDownloadSessionReady(_)
+            | EventOutcome::SettingUploadRequested(_)
             | EventOutcome::Ignored => {}
         }
     }
@@ -506,7 +502,7 @@ fn drain_startup_watch_events(commands: &mut mpsc::Receiver<SyncSessionCommand>)
 }
 
 async fn wait_for_authorization(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault: &VaultFs,
     store: &mut LocalStore,
 ) -> Result<()> {
@@ -526,11 +522,12 @@ async fn wait_for_authorization(
 
 async fn send_client_info(
     config: &AppConfig,
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault: &VaultFs,
     store: &mut LocalStore,
 ) -> Result<()> {
-    let mut info = ClientInfo::headless(config.client.name.clone(), config.client.version.clone());
+    let mut info =
+        ClientDescriptor::headless(config.client.name.clone(), config.client.version.clone());
     info.protobuf = config.client.protobuf;
     ws.send_client_info(&info).await?;
 
@@ -554,7 +551,7 @@ async fn send_client_info(
 }
 
 async fn handle_outcome(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault_name: &VaultName,
     vault: &VaultFs,
     store: &mut LocalStore,
@@ -564,11 +561,11 @@ async fn handle_outcome(
     outcome: EventOutcome,
 ) -> Result<()> {
     match outcome {
-        EventOutcome::NeedFileDownload(download) => {
+        EventOutcome::FileDownloadRequested(download) => {
             let request = build_file_get_request(vault_name, &download);
             ws.send_json(Action::FileChunkDownload, &request).await?;
         }
-        EventOutcome::NeedFileDownloadSession(download) => {
+        EventOutcome::FileDownloadSessionReady(download) => {
             let session = DownloadSession::new(download)?;
             warn!(
                 path = %session.path(),
@@ -577,10 +574,10 @@ async fn handle_outcome(
             );
             downloads.insert(session);
         }
-        EventOutcome::NeedFileUpload(upload) => {
+        EventOutcome::FileUploadRequested(upload) => {
             send_file_upload(ws, vault, store, &upload, transfer).await?;
         }
-        EventOutcome::NeedNoteUpload(resource) => {
+        EventOutcome::NoteUploadRequested(resource) => {
             crate::sync::session::local_change::send_local_change(
                 ws,
                 vault_name,
@@ -593,7 +590,7 @@ async fn handle_outcome(
             )
             .await?;
         }
-        EventOutcome::NeedSettingUpload(path) => {
+        EventOutcome::SettingUploadRequested(path) => {
             crate::sync::session::local_change::send_local_change(
                 ws,
                 vault_name,
@@ -656,7 +653,7 @@ impl ActiveDownloads {
 }
 
 async fn send_file_upload(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault: &VaultFs,
     store: &mut LocalStore,
     upload: &crate::sync::plan::FileUpload,

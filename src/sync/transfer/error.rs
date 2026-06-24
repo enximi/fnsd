@@ -40,12 +40,4 @@ pub enum FileTransferError {
         expected: ContentHash,
         actual: ContentHash,
     },
-    #[error(
-        "upload checkpoint chunk index {index} is out of range for {path}: total chunks {total}"
-    )]
-    UploadCheckpointOutOfRange {
-        path: VaultPath,
-        index: u32,
-        total: usize,
-    },
 }

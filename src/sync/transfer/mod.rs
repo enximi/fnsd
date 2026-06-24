@@ -7,7 +7,7 @@ mod download;
 mod error;
 mod upload;
 
-pub use download::{DownloadSession, DownloadedFile, build_file_get_request};
+pub use download::{DownloadSession, build_file_get_request};
 pub use error::{FileTransferError, Result};
 pub use upload::{UploadPlan, build_upload_plan};
 

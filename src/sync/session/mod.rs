@@ -8,4 +8,4 @@ mod local_change;
 mod session;
 
 pub use error::{Result, SyncSessionError};
-pub use session::{SyncSession, SyncSessionCommand, SyncSessionOptions};
+pub use session::{SyncSession, SyncSessionCommand};

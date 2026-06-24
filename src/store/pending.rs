@@ -32,32 +32,6 @@ pub struct PendingState {
     pub folder_renames: Vec<PendingRename>,
 }
 
-impl PendingState {
-    pub fn is_empty(&self) -> bool {
-        self.note_modifies.is_empty()
-            && self.file_uploads.is_empty()
-            && self.file_upload_checkpoints.is_empty()
-            && self.setting_modifies.is_empty()
-            && self.note_deletes.is_empty()
-            && self.file_deletes.is_empty()
-            && self.folder_deletes.is_empty()
-            && self.setting_deletes.is_empty()
-            && self.note_renames.is_empty()
-            && self.file_renames.is_empty()
-            && self.folder_renames.is_empty()
-    }
-
-    pub fn clear(&mut self) {
-        *self = Self::default();
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PendingModify {
-    pub path: VaultPath,
-    pub content_hash: ContentHash,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadCheckpoint {
@@ -81,23 +55,6 @@ impl UploadCheckpoint {
 
     pub fn content_hash(&self) -> Result<ContentHash> {
         Ok(ContentHash::new(&self.content_hash)?)
-    }
-}
-
-impl PendingModify {
-    pub fn new(path: VaultPath, content_hash: ContentHash) -> Self {
-        Self { path, content_hash }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PendingDelete {
-    pub path: VaultPath,
-}
-
-impl PendingDelete {
-    pub fn new(path: VaultPath) -> Self {
-        Self { path }
     }
 }
 

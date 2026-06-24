@@ -18,7 +18,7 @@ pub(crate) fn need_download(frame: &TextFrame) -> Result<EventOutcome> {
     let FileOperation::Download(file) = plan_file_modify(&message)? else {
         unreachable!("file update planner must produce download operation");
     };
-    Ok(EventOutcome::NeedFileDownload(file))
+    Ok(EventOutcome::FileDownloadRequested(file))
 }
 
 pub(crate) fn apply_delete(
@@ -75,7 +75,7 @@ pub(crate) fn need_upload(frame: &TextFrame) -> Result<EventOutcome> {
     let FileOperation::Upload(upload) = plan_file_upload(&message)? else {
         unreachable!("file upload planner must produce upload operation");
     };
-    Ok(EventOutcome::NeedFileUpload(upload))
+    Ok(EventOutcome::FileUploadRequested(upload))
 }
 
 pub(crate) fn download_session(frame: &TextFrame) -> Result<EventOutcome> {
@@ -83,7 +83,7 @@ pub(crate) fn download_session(frame: &TextFrame) -> Result<EventOutcome> {
     let FileOperation::ReceiveDownload(download) = plan_file_download(&message)? else {
         unreachable!("file download planner must produce receive-download operation");
     };
-    Ok(EventOutcome::NeedFileDownloadSession(download))
+    Ok(EventOutcome::FileDownloadSessionReady(download))
 }
 
 pub(crate) fn sync_end(frame: &TextFrame, store: &mut LocalStore) -> Result<EventOutcome> {

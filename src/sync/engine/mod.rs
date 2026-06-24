@@ -9,8 +9,8 @@ mod error;
 mod event_loop;
 mod outgoing;
 mod snapshot;
-mod transfer;
+mod transfer_queue;
 
-pub use engine::{MissingPathMode, SyncEngine, SyncEngineOptions, SyncOnceSummary};
+pub use engine::{MissingPathMode, SyncEngine};
 pub use error::{Result, SyncEngineError};
-pub use transfer::TransferOptions;
+pub use transfer_queue::TransferOptions;

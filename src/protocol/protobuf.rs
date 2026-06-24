@@ -831,13 +831,6 @@ where
     encode_ws_message(action, data)
 }
 
-pub fn encode_protobuf_client_info(payload: &ClientInfoMessage) -> Result<Vec<u8>> {
-    encode_ws_message(
-        Action::ClientInfo,
-        PbClientInfoMessage::from(payload).encode_to_vec(),
-    )
-}
-
 pub fn decode_protobuf_frame(frame: &[u8]) -> Result<TextFrame> {
     let envelope = WsMessage::decode(frame)?;
     let action = Action::try_from(envelope.message_type)?;

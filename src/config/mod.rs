@@ -7,7 +7,4 @@ mod error;
 mod model;
 
 pub use error::{ConfigError, Result};
-pub use model::{
-    AppConfig, ClientConfig, RuleConfig, ScanConfig, ServerConfig, StoreConfig, SyncConfig,
-    VaultConfig,
-};
+pub use model::AppConfig;

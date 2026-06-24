@@ -7,7 +7,7 @@ use tracing::{error, info, warn};
 
 use crate::daemon::{
     DaemonError, Result,
-    watcher::{WatchReceiver, spawn_watch_task},
+    watch_task::{WatchReceiver, spawn_watch_task},
 };
 
 #[derive(Debug)]
@@ -19,10 +19,6 @@ pub struct Daemon {
 impl Daemon {
     pub fn new(config: AppConfig) -> Self {
         let options = DaemonOptions::from_config(&config);
-        Self { config, options }
-    }
-
-    pub fn with_options(config: AppConfig, options: DaemonOptions) -> Self {
         Self { config, options }
     }
 

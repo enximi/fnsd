@@ -27,12 +27,12 @@ impl EventApplySummary {
             EventOutcome::RemoteMtimeUpdate { .. } => self.remote_mtime_updates += 1,
             EventOutcome::Ack { .. } => self.acks += 1,
             EventOutcome::SyncEnd { .. } => self.sync_ends += 1,
-            EventOutcome::NeedNoteUpload(_) => self.pending_note_uploads += 1,
-            EventOutcome::NeedFileUpload(_) => self.pending_file_uploads += 1,
-            EventOutcome::NeedFileDownload(_) | EventOutcome::NeedFileDownloadSession(_) => {
+            EventOutcome::NoteUploadRequested(_) => self.pending_note_uploads += 1,
+            EventOutcome::FileUploadRequested(_) => self.pending_file_uploads += 1,
+            EventOutcome::FileDownloadRequested(_) | EventOutcome::FileDownloadSessionReady(_) => {
                 self.pending_file_downloads += 1;
             }
-            EventOutcome::NeedSettingUpload(_) => self.pending_setting_uploads += 1,
+            EventOutcome::SettingUploadRequested(_) => self.pending_setting_uploads += 1,
             EventOutcome::AuthorizationAccepted | EventOutcome::Ignored => {}
         }
     }
@@ -67,11 +67,11 @@ pub enum EventOutcome {
         last_time: RemoteMillis,
         pending_events: usize,
     },
-    NeedNoteUpload(DeletedResource),
-    NeedFileUpload(FileUpload),
-    NeedFileDownload(RemoteFile),
-    NeedFileDownloadSession(FileDownload),
-    NeedSettingUpload(VaultPath),
+    NoteUploadRequested(DeletedResource),
+    FileUploadRequested(FileUpload),
+    FileDownloadRequested(RemoteFile),
+    FileDownloadSessionReady(FileDownload),
+    SettingUploadRequested(VaultPath),
     Ignored,
 }
 

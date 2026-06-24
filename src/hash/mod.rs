@@ -4,16 +4,13 @@
 //! 文本 hash 按 `charCodeAt` 语义计算，因此这里对 UTF-16 code unit 做 hash，
 //! 而不是直接对 Rust char 做 hash。
 
-mod bytes;
+pub(crate) mod bytes;
 mod path;
 mod text;
 
-pub use bytes::{
-    FILE_HASH_SLICE_SIZE, FILE_HASH_THRESHOLD, binary_content_hash, file_content_hash,
-    file_content_hash_parts,
-};
+pub use bytes::file_content_hash;
 pub use path::path_hash;
-pub use text::{text_content_hash, text_hash_value};
+pub use text::text_content_hash;
 
 fn finish_hash(value: i32) -> String {
     value.to_string()

@@ -9,10 +9,10 @@ mod error;
 mod file;
 mod folder;
 mod frame;
+mod handshake;
 mod note;
 mod protobuf;
 mod response;
-mod session;
 mod setting;
 
 pub use action::Action;
@@ -35,6 +35,7 @@ pub use folder::{
     FolderSyncRenameMessage, FolderSyncRequest,
 };
 pub use frame::{TextFrame, decode_text_frame, encode_raw_text_frame, encode_text_frame};
+pub use handshake::{ClientInfoMessage, OfflineSyncStrategy};
 pub use note::{
     NoteDeleteAckMessage, NoteDeleteRequest, NoteGetRequest, NoteModifyAckMessage,
     NoteModifyOrCreateRequest, NoteRenameAckMessage, NoteRenameRequest, NoteSyncCheckRequest,
@@ -42,12 +43,8 @@ pub use note::{
     NoteSyncMtimeMessage, NoteSyncNeedPushMessage, NoteSyncRenameMessage, NoteSyncRequest,
     NoteUpdateCheckRequest,
 };
-pub use protobuf::{
-    PROTOBUF_BINARY_PREFIX, decode_protobuf_frame, encode_protobuf_client_info,
-    encode_protobuf_frame,
-};
+pub use protobuf::{PROTOBUF_BINARY_PREFIX, decode_protobuf_frame, encode_protobuf_frame};
 pub use response::WsResponse;
-pub use session::{ClientInfoMessage, OfflineSyncStrategy};
 pub use setting::{
     SettingClearRequest, SettingDeleteAckMessage, SettingDeleteRequest, SettingGetRequest,
     SettingModifyAckMessage, SettingModifyOrCreateRequest, SettingSyncCheckRequest,

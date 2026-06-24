@@ -10,11 +10,11 @@ use crate::sync::plan::{
     build_setting_sync_request,
 };
 use crate::vault::fs::{VaultFs, VaultScanOptions};
-use crate::ws::{ClientInfo, FnsWsClient, WsEvent};
+use crate::ws::{ClientDescriptor, WebSocketClient, WsEvent};
 use tracing::{debug, info};
 
 use crate::sync::engine::{
-    Result, SyncEngineError, snapshot::SyncBatches, transfer::TransferOptions,
+    Result, SyncEngineError, snapshot::SyncBatches, transfer_queue::TransferOptions,
 };
 
 #[derive(Debug)]
@@ -27,14 +27,6 @@ impl SyncEngine {
     pub fn new(config: AppConfig) -> Self {
         let options = SyncEngineOptions::from_config(&config);
         Self { config, options }
-    }
-
-    pub fn with_options(config: AppConfig, options: SyncEngineOptions) -> Self {
-        Self { config, options }
-    }
-
-    pub fn config(&self) -> &AppConfig {
-        &self.config
     }
 
     pub(crate) fn options(&self) -> &SyncEngineOptions {
@@ -50,7 +42,7 @@ impl SyncEngine {
             .server
             .ws_url_with_protocol(self.config.client.protobuf)?;
         info!(server = %ws_url, "connecting websocket");
-        let mut ws = FnsWsClient::connect(&ws_url).await?;
+        let mut ws = WebSocketClient::connect(&ws_url).await?;
         debug!("sending authorization request");
         ws.authorize(self.config.server.api_token.clone()).await?;
         self.wait_for_authorization(&mut ws, &vault, &mut store)
@@ -65,7 +57,7 @@ impl SyncEngine {
 
     pub async fn sync_authenticated(
         &self,
-        ws: &mut FnsWsClient,
+        ws: &mut WebSocketClient,
         vault: &VaultFs,
         store: &mut LocalStore,
     ) -> Result<SyncOnceSummary> {
@@ -114,8 +106,8 @@ impl SyncEngine {
         })
     }
 
-    fn client_info(&self) -> ClientInfo {
-        let mut info = ClientInfo::headless(
+    fn client_info(&self) -> ClientDescriptor {
+        let mut info = ClientDescriptor::headless(
             self.config.client.name.clone(),
             self.config.client.version.clone(),
         );
@@ -125,7 +117,7 @@ impl SyncEngine {
 
     async fn send_client_info(
         &self,
-        ws: &mut FnsWsClient,
+        ws: &mut WebSocketClient,
         vault: &VaultFs,
         store: &mut LocalStore,
     ) -> Result<()> {
@@ -156,7 +148,7 @@ impl SyncEngine {
 
     async fn send_sync_requests(
         &self,
-        ws: &mut FnsWsClient,
+        ws: &mut WebSocketClient,
         vault_name: &VaultName,
         batches: &SyncBatches,
     ) -> Result<()> {
@@ -193,7 +185,7 @@ impl SyncEngine {
 
     async fn wait_for_authorization(
         &self,
-        ws: &mut FnsWsClient,
+        ws: &mut WebSocketClient,
         vault: &VaultFs,
         store: &mut LocalStore,
     ) -> Result<()> {

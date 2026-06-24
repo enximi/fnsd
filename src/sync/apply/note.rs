@@ -67,7 +67,7 @@ pub(crate) fn need_push(frame: &TextFrame) -> Result<EventOutcome> {
     let NoteOperation::Upload(resource) = plan_note_need_push(&message)? else {
         unreachable!("note need-push planner must produce upload operation");
     };
-    Ok(EventOutcome::NeedNoteUpload(resource))
+    Ok(EventOutcome::NoteUploadRequested(resource))
 }
 
 pub(crate) fn sync_end(frame: &TextFrame, store: &mut LocalStore) -> Result<EventOutcome> {

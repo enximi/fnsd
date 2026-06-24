@@ -1,8 +1,7 @@
 use crate::protocol::{
     Action, BINARY_PREFIX_FILE_SYNC, ClientInfoMessage, FileChunkFrame, decode_binary_frame,
     decode_file_chunk_payload, decode_protobuf_frame, decode_text_frame, encode_binary_frame,
-    encode_file_chunk_payload, encode_protobuf_client_info, encode_protobuf_frame,
-    encode_raw_text_frame, encode_text_frame,
+    encode_file_chunk_payload, encode_protobuf_frame, encode_raw_text_frame, encode_text_frame,
 };
 use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
@@ -17,12 +16,12 @@ use crate::ws::{Result, WsEvent};
 type WsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
 #[derive(Debug)]
-pub struct FnsWsClient {
+pub struct WebSocketClient {
     stream: WsStream,
     protobuf_enabled: bool,
 }
 
-impl FnsWsClient {
+impl WebSocketClient {
     pub async fn connect(url: &str) -> Result<Self> {
         let (stream, _) = connect_async(url).await?;
         Ok(Self {
@@ -36,23 +35,13 @@ impl FnsWsClient {
             .await
     }
 
-    pub async fn send_client_info(&mut self, info: &ClientInfo) -> Result<()> {
+    pub async fn send_client_info(&mut self, info: &ClientDescriptor) -> Result<()> {
         self.send_json(Action::ClientInfo, &info.to_protocol())
             .await
     }
 
-    pub async fn send_protobuf_client_info(&mut self, info: &ClientInfo) -> Result<()> {
-        let frame = encode_protobuf_client_info(&info.to_protocol())?;
-        self.stream.send(Message::Binary(frame.into())).await?;
-        Ok(())
-    }
-
     pub fn enable_protobuf(&mut self) {
         self.protobuf_enabled = true;
-    }
-
-    pub fn protobuf_enabled(&self) -> bool {
-        self.protobuf_enabled
     }
 
     pub async fn send_json<T>(&mut self, action: Action, payload: &T) -> Result<()>
@@ -82,12 +71,6 @@ impl FnsWsClient {
         Ok(())
     }
 
-    pub async fn send_binary(&mut self, prefix: &str, payload: &[u8]) -> Result<()> {
-        let frame = encode_binary_frame(prefix, payload)?;
-        self.stream.send(Message::Binary(frame.into())).await?;
-        Ok(())
-    }
-
     pub async fn next_event(&mut self) -> Result<WsEvent> {
         loop {
             let Some(message) = self.stream.next().await else {
@@ -103,11 +86,6 @@ impl FnsWsClient {
                 Message::Frame(_) => {}
             }
         }
-    }
-
-    pub async fn close(mut self) -> Result<()> {
-        self.stream.close(None).await?;
-        Ok(())
     }
 
     fn decode_binary_event(&self, bytes: &Bytes) -> Result<WsEvent> {
@@ -127,7 +105,7 @@ impl FnsWsClient {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ClientInfo {
+pub struct ClientDescriptor {
     pub name: String,
     pub version: String,
     pub client_type: String,
@@ -142,7 +120,7 @@ pub struct ClientInfo {
     pub protobuf: bool,
 }
 
-impl ClientInfo {
+impl ClientDescriptor {
     pub fn headless(name: impl Into<String>, version: impl Into<String>) -> Self {
         Self {
             name: name.into(),

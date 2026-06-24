@@ -13,7 +13,7 @@ use crate::sync::plan::{DeletedResource, Result};
 pub enum NoteOperation {
     Write(RemoteText),
     Delete(DeletedResource),
-    Rename(TextRename),
+    Rename(RemoteTextRename),
     UpdateMtime(MtimeUpdate),
     Upload(DeletedResource),
 }
@@ -22,7 +22,7 @@ pub enum NoteOperation {
 pub enum FileOperation {
     Download(RemoteFile),
     Delete(DeletedResource),
-    Rename(RenameResource),
+    Rename(RemotePathRename),
     UpdateMtime(MtimeUpdate),
     Upload(FileUpload),
     ReceiveDownload(FileDownload),
@@ -30,9 +30,9 @@ pub enum FileOperation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FolderOperation {
-    Create(FolderChange),
+    Create(RemoteFolder),
     Delete(DeletedResource),
-    Rename(RenameResource),
+    Rename(RemotePathRename),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,7 +66,7 @@ pub struct RemoteFile {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FolderChange {
+pub struct RemoteFolder {
     pub path: VaultPath,
     pub path_hash: PathHash,
     pub ctime: RemoteMillis,
@@ -75,7 +75,7 @@ pub struct FolderChange {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TextRename {
+pub struct RemoteTextRename {
     pub path: VaultPath,
     pub path_hash: PathHash,
     pub old_path: VaultPath,
@@ -87,7 +87,7 @@ pub struct TextRename {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RenameResource {
+pub struct RemotePathRename {
     pub path: VaultPath,
     pub path_hash: PathHash,
     pub old_path: VaultPath,
@@ -145,7 +145,7 @@ pub fn plan_note_delete(message: &NoteSyncDeleteMessage) -> Result<NoteOperation
 }
 
 pub fn plan_note_rename(message: &NoteSyncRenameMessage) -> Result<NoteOperation> {
-    Ok(NoteOperation::Rename(TextRename {
+    Ok(NoteOperation::Rename(RemoteTextRename {
         path: parse_path(&message.path)?,
         path_hash: parse_path_hash(&message.path_hash)?,
         old_path: parse_path(&message.old_path)?,
@@ -193,7 +193,7 @@ pub fn plan_file_delete(message: &FileSyncDeleteMessage) -> Result<FileOperation
 }
 
 pub fn plan_file_rename(message: &FileSyncRenameMessage) -> Result<FileOperation> {
-    Ok(FileOperation::Rename(RenameResource {
+    Ok(FileOperation::Rename(RemotePathRename {
         path: parse_path(&message.path)?,
         path_hash: parse_path_hash(&message.path_hash)?,
         old_path: parse_path(&message.old_path)?,
@@ -236,7 +236,7 @@ pub fn plan_file_download(message: &FileSyncDownloadMessage) -> Result<FileOpera
 }
 
 pub fn plan_folder_modify(message: &FolderSyncModifyMessage) -> Result<FolderOperation> {
-    Ok(FolderOperation::Create(FolderChange {
+    Ok(FolderOperation::Create(RemoteFolder {
         path: parse_path(&message.path)?,
         path_hash: parse_path_hash(&message.path_hash)?,
         ctime: parse_time(message.ctime)?,
@@ -253,7 +253,7 @@ pub fn plan_folder_delete(message: &FolderSyncDeleteMessage) -> Result<FolderOpe
 }
 
 pub fn plan_folder_rename(message: &FolderSyncRenameMessage) -> Result<FolderOperation> {
-    Ok(FolderOperation::Rename(RenameResource {
+    Ok(FolderOperation::Rename(RemotePathRename {
         path: parse_path(&message.path)?,
         path_hash: parse_path_hash(&message.path_hash)?,
         old_path: parse_path(&message.old_path)?,

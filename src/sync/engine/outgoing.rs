@@ -5,7 +5,7 @@ use crate::store::{LocalStore, UploadCheckpoint};
 use crate::sync::plan::{FileUpload, build_note_modify_request, build_setting_modify_request};
 use crate::sync::transfer::build_upload_plan;
 use crate::vault::fs::VaultFs;
-use crate::ws::FnsWsClient;
+use crate::ws::WebSocketClient;
 use std::time::Duration;
 use tokio::time::timeout;
 use tracing::{debug, info};
@@ -13,7 +13,7 @@ use tracing::{debug, info};
 use crate::sync::engine::{Result, SyncEngineError};
 
 pub(crate) async fn send_note_modify(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault_name: &VaultName,
     vault: &VaultFs,
     store: &mut LocalStore,
@@ -46,7 +46,7 @@ pub(crate) async fn send_note_modify(
 }
 
 pub(crate) async fn send_setting_modify(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault_name: &VaultName,
     vault: &VaultFs,
     store: &mut LocalStore,
@@ -79,7 +79,7 @@ pub(crate) async fn send_setting_modify(
 }
 
 pub(crate) async fn send_file_upload(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault: &VaultFs,
     store: &mut LocalStore,
     upload: &FileUpload,
@@ -137,7 +137,7 @@ pub(crate) async fn send_file_upload(
 }
 
 async fn send_file_chunk(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     chunk: &crate::protocol::FileChunkFrame,
     transfer_timeout: Duration,
 ) -> Result<()> {

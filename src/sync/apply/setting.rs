@@ -55,7 +55,7 @@ pub(crate) fn need_upload(frame: &TextFrame) -> Result<EventOutcome> {
     let SettingOperation::Upload(path) = plan_setting_need_upload(&message)? else {
         unreachable!("setting need-upload planner must produce upload operation");
     };
-    Ok(EventOutcome::NeedSettingUpload(path))
+    Ok(EventOutcome::SettingUploadRequested(path))
 }
 
 pub(crate) fn sync_end(frame: &TextFrame, store: &mut LocalStore) -> Result<EventOutcome> {

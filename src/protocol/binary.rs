@@ -11,29 +11,12 @@ pub struct BinaryFrame {
 }
 
 impl BinaryFrame {
-    pub fn new(prefix: &str, payload: impl Into<Vec<u8>>) -> Result<Self> {
-        let prefix = parse_prefix(prefix)?;
-
-        Ok(Self {
-            prefix,
-            payload: payload.into(),
-        })
-    }
-
-    pub fn prefix(&self) -> [u8; 2] {
-        self.prefix
-    }
-
     pub fn prefix_str(&self) -> String {
         String::from_utf8_lossy(&self.prefix).into_owned()
     }
 
     pub fn payload(&self) -> &[u8] {
         &self.payload
-    }
-
-    pub fn into_parts(self) -> ([u8; 2], Vec<u8>) {
-        (self.prefix, self.payload)
     }
 }
 
@@ -72,10 +55,6 @@ impl FileChunkFrame {
 
     pub fn chunk_data(&self) -> &[u8] {
         &self.chunk_data
-    }
-
-    pub fn into_parts(self) -> (String, u32, Vec<u8>) {
-        (self.session_id, self.chunk_index, self.chunk_data)
     }
 }
 

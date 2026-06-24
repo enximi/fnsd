@@ -28,10 +28,6 @@ impl VaultName {
     pub fn as_str(&self) -> &str {
         &self.0
     }
-
-    pub fn into_string(self) -> String {
-        self.0
-    }
 }
 
 impl AsRef<str> for VaultName {
@@ -68,15 +64,6 @@ impl VaultPath {
 
     pub fn into_string(self) -> String {
         self.0
-    }
-
-    pub fn file_name(&self) -> Option<&str> {
-        self.0.rsplit('/').next()
-    }
-
-    pub fn parent(&self) -> Option<Self> {
-        let (parent, _) = self.0.rsplit_once('/')?;
-        Some(Self(parent.to_string()))
     }
 
     pub fn to_path_buf_under(&self, root: impl AsRef<Path>) -> PathBuf {

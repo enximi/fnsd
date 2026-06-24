@@ -33,14 +33,6 @@ impl LocalStore {
         &self.path
     }
 
-    pub fn state(&self) -> &LocalStoreState {
-        &self.state
-    }
-
-    pub fn state_mut(&mut self) -> &mut LocalStoreState {
-        &mut self.state
-    }
-
     pub fn sync_time(&self, kind: ResourceKind) -> Result<RemoteMillis> {
         self.state.sync_times.get(kind)
     }
@@ -98,10 +90,6 @@ impl LocalStore {
             .map(VaultPath::new)
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(Into::into)
-    }
-
-    pub fn clear_hashes(&mut self, kind: ResourceKind) {
-        self.state.hashes.by_kind_mut(kind).clear();
     }
 
     pub fn set_pending_modify(

@@ -4,7 +4,7 @@ use crate::store::LocalStore;
 use crate::sync::apply::{EventApplySummary, EventOutcome, SyncEndTracker, apply_text_event};
 use crate::sync::transfer::{DownloadSession, build_file_get_request};
 use crate::vault::fs::VaultFs;
-use crate::ws::{FnsWsClient, WsEvent};
+use crate::ws::{WebSocketClient, WsEvent};
 use tokio::time::timeout;
 use tracing::{debug, info, warn};
 
@@ -12,13 +12,13 @@ use crate::sync::engine::{
     Result, SyncEngine, SyncEngineError,
     checkpoint::DownloadCheckpointStore,
     outgoing::{send_file_upload, send_note_modify, send_setting_modify},
-    transfer::{QueuedTransfer, TransferKey, TransferState},
+    transfer_queue::{QueuedTransfer, TransferKey, TransferState},
 };
 
 impl SyncEngine {
     pub(crate) async fn drain_sync_events(
         &self,
-        ws: &mut FnsWsClient,
+        ws: &mut WebSocketClient,
         vault_name: &VaultName,
         vault: &VaultFs,
         store: &mut LocalStore,
@@ -81,7 +81,7 @@ impl SyncEngine {
         Ok(summary)
     }
 
-    async fn next_event(&self, ws: &mut FnsWsClient) -> Result<WsEvent> {
+    async fn next_event(&self, ws: &mut WebSocketClient) -> Result<WsEvent> {
         let wait = self.options().transfer.timeout;
         if wait.is_zero() {
             return Ok(ws.next_event().await?);
@@ -95,23 +95,23 @@ impl SyncEngine {
 
     fn handle_transfer_outcome(&self, transfers: &mut TransferState, outcome: &EventOutcome) {
         match outcome {
-            EventOutcome::NeedNoteUpload(resource) => {
+            EventOutcome::NoteUploadRequested(resource) => {
                 debug!(path = %resource.path, "queue note upload");
                 transfers.enqueue(QueuedTransfer::NoteUpload(resource.path.clone()));
             }
-            EventOutcome::NeedFileUpload(upload) => {
+            EventOutcome::FileUploadRequested(upload) => {
                 debug!(path = %upload.path, session_id = %upload.session_id, "queue file upload");
                 transfers.enqueue(QueuedTransfer::FileUpload(upload.clone()));
             }
-            EventOutcome::NeedFileDownload(download) => {
+            EventOutcome::FileDownloadRequested(download) => {
                 debug!(path = %download.path, "queue file download request");
                 transfers.enqueue(QueuedTransfer::FileDownloadRequest(download.clone()));
             }
-            EventOutcome::NeedFileDownloadSession(download) => {
+            EventOutcome::FileDownloadSessionReady(download) => {
                 debug!(path = %download.path, session_id = %download.session_id, "queue file download session");
                 transfers.enqueue(QueuedTransfer::FileDownloadSession(download.clone()));
             }
-            EventOutcome::NeedSettingUpload(path) => {
+            EventOutcome::SettingUploadRequested(path) => {
                 debug!(path = %path, "queue setting upload");
                 transfers.enqueue(QueuedTransfer::SettingUpload(path.clone()));
             }
@@ -121,7 +121,7 @@ impl SyncEngine {
 
     async fn start_ready_transfers(
         &self,
-        ws: &mut FnsWsClient,
+        ws: &mut WebSocketClient,
         vault_name: &VaultName,
         vault: &VaultFs,
         store: &mut LocalStore,
@@ -137,7 +137,7 @@ impl SyncEngine {
 
     async fn start_transfer(
         &self,
-        ws: &mut FnsWsClient,
+        ws: &mut WebSocketClient,
         vault_name: &VaultName,
         vault: &VaultFs,
         store: &mut LocalStore,

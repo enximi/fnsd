@@ -163,18 +163,6 @@ impl ScanRule {
         }
     }
 
-    pub fn pattern(&self) -> &str {
-        &self.pattern
-    }
-
-    pub fn is_case_sensitive(&self) -> bool {
-        self.case_sensitive
-    }
-
-    pub fn is_regex(&self) -> bool {
-        self.regex
-    }
-
     fn matches(&self, path: &VaultPath) -> bool {
         let path = path.as_str();
 

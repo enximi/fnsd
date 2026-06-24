@@ -2,7 +2,7 @@ use std::io::ErrorKind;
 
 use crate::core::{RemoteMillis, ResourceKind, VaultPath};
 use crate::store::LocalStore;
-use crate::sync::plan::{DeletedResource, MtimeUpdate, RemoteText, TextRename};
+use crate::sync::plan::{DeletedResource, MtimeUpdate, RemoteText, RemoteTextRename};
 use crate::vault::fs::{VaultFileTimes, VaultFs, VaultFsError};
 
 use crate::sync::apply::{EventOutcome, Result};
@@ -50,7 +50,7 @@ pub(crate) fn apply_file_delete(
 
 pub(crate) fn apply_text_rename(
     kind: ResourceKind,
-    rename: TextRename,
+    rename: RemoteTextRename,
     vault: &VaultFs,
     store: &mut LocalStore,
 ) -> Result<EventOutcome> {

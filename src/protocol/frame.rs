@@ -21,10 +21,6 @@ impl TextFrame {
         &self.action
     }
 
-    pub fn payload(&self) -> &str {
-        &self.payload
-    }
-
     pub fn decode_payload<T>(&self) -> Result<T>
     where
         T: DeserializeOwned,
@@ -43,10 +39,6 @@ impl TextFrame {
         }
 
         response.data.ok_or(ProtocolError::MissingResponseData)
-    }
-
-    pub fn into_parts(self) -> (Action, String) {
-        (self.action, self.payload)
     }
 }
 

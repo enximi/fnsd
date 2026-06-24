@@ -1,5 +1,5 @@
 use std::path::{Component, Path, PathBuf};
-use std::sync::mpsc::{Receiver, TryRecvError, channel};
+use std::sync::mpsc::{Receiver, channel};
 
 use crate::core::VaultPath;
 use crate::vault::fs::VaultScanOptions;
@@ -45,14 +45,6 @@ impl VaultWatcher {
 
     pub fn recv(&self) -> Result<VaultWatchEvent> {
         self.receiver.recv()?
-    }
-
-    pub fn try_recv(&self) -> Result<Option<VaultWatchEvent>> {
-        match self.receiver.try_recv() {
-            Ok(event) => event.map(Some),
-            Err(TryRecvError::Empty) => Ok(None),
-            Err(TryRecvError::Disconnected) => Err(VaultWatchError::ChannelClosed),
-        }
     }
 }
 

@@ -5,7 +5,7 @@
 
 mod daemon;
 mod error;
-mod watcher;
+mod watch_task;
 
-pub use daemon::{Daemon, DaemonOptions};
+pub use daemon::Daemon;
 pub use error::{DaemonError, Result};

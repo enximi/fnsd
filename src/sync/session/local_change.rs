@@ -11,13 +11,13 @@ use crate::store::{LocalStore, PendingRename};
 use crate::sync::plan::{build_note_modify_request, build_setting_modify_request};
 use crate::vault::fs::{VaultFs, VaultScanOptions};
 use crate::vault::watch::VaultWatchEvent;
-use crate::ws::FnsWsClient;
+use crate::ws::WebSocketClient;
 use tracing::{debug, warn};
 
 use crate::sync::session::Result;
 
 pub(crate) async fn send_local_changes(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault_name: &VaultName,
     vault: &VaultFs,
     store: &mut LocalStore,
@@ -32,7 +32,7 @@ pub(crate) async fn send_local_changes(
 }
 
 pub(crate) async fn send_local_change(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault_name: &VaultName,
     vault: &VaultFs,
     store: &mut LocalStore,
@@ -58,7 +58,7 @@ pub(crate) async fn send_local_change(
 }
 
 async fn send_path_rename(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault_name: &VaultName,
     vault: &VaultFs,
     store: &mut LocalStore,
@@ -102,7 +102,7 @@ async fn send_path_rename(
 }
 
 async fn send_path_change(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault_name: &VaultName,
     vault: &VaultFs,
     store: &mut LocalStore,
@@ -150,7 +150,7 @@ async fn send_path_change(
 }
 
 async fn send_note_rename(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault_name: &VaultName,
     store: &mut LocalStore,
     old_path: &VaultPath,
@@ -175,7 +175,7 @@ async fn send_note_rename(
 }
 
 async fn send_file_rename(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault_name: &VaultName,
     store: &mut LocalStore,
     old_path: &VaultPath,
@@ -200,7 +200,7 @@ async fn send_file_rename(
 }
 
 async fn send_folder_rename(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault_name: &VaultName,
     store: &mut LocalStore,
     old_path: &VaultPath,
@@ -226,7 +226,7 @@ async fn send_folder_rename(
 }
 
 async fn send_note_modify(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault_name: &VaultName,
     vault: &VaultFs,
     store: &mut LocalStore,
@@ -259,7 +259,7 @@ async fn send_note_modify(
 }
 
 async fn send_setting_modify(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault_name: &VaultName,
     vault: &VaultFs,
     store: &mut LocalStore,
@@ -292,7 +292,7 @@ async fn send_setting_modify(
 }
 
 async fn send_file_upload_check(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault_name: &VaultName,
     vault: &VaultFs,
     store: &mut LocalStore,
@@ -325,7 +325,7 @@ async fn send_file_upload_check(
 }
 
 async fn send_folder_modify(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault_name: &VaultName,
     store: &mut LocalStore,
     path: &VaultPath,
@@ -351,7 +351,7 @@ async fn send_folder_modify(
 }
 
 async fn send_delete_by_known_kind(
-    ws: &mut FnsWsClient,
+    ws: &mut WebSocketClient,
     vault_name: &VaultName,
     store: &mut LocalStore,
     path: &VaultPath,

@@ -8,30 +8,6 @@ pub enum ResourceKind {
     Setting,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ResourceId {
-    kind: ResourceKind,
-    path: VaultPath,
-}
-
-impl ResourceId {
-    pub fn new(kind: ResourceKind, path: VaultPath) -> Self {
-        Self { kind, path }
-    }
-
-    pub fn kind(&self) -> ResourceKind {
-        self.kind
-    }
-
-    pub fn path(&self) -> &VaultPath {
-        &self.path
-    }
-
-    pub fn into_parts(self) -> (ResourceKind, VaultPath) {
-        (self.kind, self.path)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncBatch<T> {
     pub context: Option<String>,
@@ -50,11 +26,6 @@ impl<T> SyncBatch<T> {
             deleted: Vec::new(),
             missing: Vec::new(),
         }
-    }
-
-    pub fn with_context(mut self, context: impl Into<String>) -> Self {
-        self.context = Some(context.into());
-        self
     }
 }
 

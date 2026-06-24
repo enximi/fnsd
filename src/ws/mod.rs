@@ -7,6 +7,6 @@ mod client;
 mod error;
 mod event;
 
-pub use client::{ClientInfo, FnsWsClient};
+pub use client::{ClientDescriptor, WebSocketClient};
 pub use error::{Result, WsClientError};
 pub use event::WsEvent;
