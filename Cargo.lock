@@ -355,6 +355,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "fns-config",
+ "fns-daemon",
  "fns-sync-engine",
  "tokio",
  "tracing",
@@ -379,6 +380,19 @@ name = "fns-core"
 version = "0.1.0"
 dependencies = [
  "thiserror",
+]
+
+[[package]]
+name = "fns-daemon"
+version = "0.1.0"
+dependencies = [
+ "fns-config",
+ "fns-sync-session",
+ "fns-vault-fs",
+ "fns-vault-watch",
+ "thiserror",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -460,6 +474,28 @@ dependencies = [
  "fns-hash",
  "fns-protocol",
  "thiserror",
+]
+
+[[package]]
+name = "fns-sync-session"
+version = "0.1.0"
+dependencies = [
+ "fns-config",
+ "fns-core",
+ "fns-file-transfer",
+ "fns-hash",
+ "fns-local-store",
+ "fns-protocol",
+ "fns-sync-apply",
+ "fns-sync-engine",
+ "fns-sync-plan",
+ "fns-vault-fs",
+ "fns-vault-watch",
+ "fns-ws-client",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

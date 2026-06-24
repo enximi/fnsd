@@ -3,6 +3,7 @@ members = [
     "crates/fns-client-headless",
     "crates/fns-config",
     "crates/fns-core",
+    "crates/fns-daemon",
     "crates/fns-file-transfer",
     "crates/fns-hash",
     "crates/fns-local-store",
@@ -10,6 +11,7 @@ members = [
     "crates/fns-sync-apply",
     "crates/fns-sync-engine",
     "crates/fns-sync-plan",
+    "crates/fns-sync-session",
     "crates/fns-vault-fs",
     "crates/fns-vault-watch",
     "crates/fns-ws-client",
@@ -22,6 +24,7 @@ config = "0.15"
 filetime = "0.2"
 fns-config = { path = "crates/fns-config" }
 fns-core = { path = "crates/fns-core" }
+fns-daemon = { path = "crates/fns-daemon" }
 fns-file-transfer = { path = "crates/fns-file-transfer" }
 fns-hash = { path = "crates/fns-hash" }
 fns-local-store = { path = "crates/fns-local-store" }
@@ -29,6 +32,7 @@ fns-protocol = { path = "crates/fns-protocol" }
 fns-sync-apply = { path = "crates/fns-sync-apply" }
 fns-sync-engine = { path = "crates/fns-sync-engine" }
 fns-sync-plan = { path = "crates/fns-sync-plan" }
+fns-sync-session = { path = "crates/fns-sync-session" }
 fns-vault-fs = { path = "crates/fns-vault-fs" }
 fns-vault-watch = { path = "crates/fns-vault-watch" }
 fns-ws-client = { path = "crates/fns-ws-client" }

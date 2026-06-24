@@ -15,6 +15,7 @@ pub struct AppConfig {
     pub store: StoreConfig,
     pub scan: ScanConfig,
     pub sync: SyncConfig,
+    pub daemon: DaemonConfig,
     pub client: ClientConfig,
 }
 
@@ -26,6 +27,7 @@ impl Default for AppConfig {
             store: StoreConfig::default(),
             scan: ScanConfig::default(),
             sync: SyncConfig::default(),
+            daemon: DaemonConfig::default(),
             client: ClientConfig::default(),
         }
     }
@@ -240,6 +242,26 @@ impl Default for SyncConfig {
             transfer_concurrency_enabled: true,
             max_concurrent_transfers: 4,
             transfer_timeout_seconds: 60 * 60,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct DaemonConfig {
+    pub watch_enabled: bool,
+    pub debounce_ms: u64,
+    pub retry_min_seconds: u64,
+    pub retry_max_seconds: u64,
+}
+
+impl Default for DaemonConfig {
+    fn default() -> Self {
+        Self {
+            watch_enabled: true,
+            debounce_ms: 1000,
+            retry_min_seconds: 5,
+            retry_max_seconds: 300,
         }
     }
 }

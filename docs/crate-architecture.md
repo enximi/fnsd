@@ -18,10 +18,11 @@
 - `fns-file-transfer`：文件分片上传/下载的纯传输辅助。
 - `fns-sync-apply`：服务端事件和 ack 应用到本地。
 - `fns-sync-engine`：一次性同步编排。
+- `fns-sync-session`：长期 WebSocket 会话和本地事件增量发送。
 - `fns-config`：配置模型和配置加载。
 - `fns-client-headless`：CLI 入口。
 
-需要调整的是长期运行相关职责。目前 `fns-sync-engine` 已经承担了连接、扫描、发送同步请求、事件循环、文件传输队列、下载断点、状态保存等职责。对于 `sync once` 还能接受，但如果继续加入 watch、daemon、重连、退避、周期同步，会变成过大的编排 crate。
+需要调整的是长期运行相关职责。目前 `fns-sync-engine` 已经承担了连接、扫描、发送同步请求、事件循环、文件传输队列、下载断点、状态保存等职责。对于 `sync once` 还能接受，但如果继续加入 watch、daemon、重连、退避，会变成过大的编排 crate。
 
 ## 目标依赖方向
 
@@ -30,13 +31,14 @@
 ```text
 fns-client-headless
   -> fns-daemon
+  -> fns-sync-session
   -> fns-sync-engine
   -> fns-sync-apply / fns-sync-plan / fns-file-transfer
   -> fns-protocol / fns-ws-client / fns-vault-fs / fns-local-store
   -> fns-core / fns-hash
 ```
 
-其中 `fns-daemon` 只做长期运行调度，不应该直接实现协议细节、文件分片、事件应用或 hash 逻辑。
+其中 `fns-daemon` 只做长期运行调度，不应该直接实现协议细节、文件分片、事件应用或 hash 逻辑。长期 WebSocket 会话放在 `fns-sync-session`。
 
 ## 建议新增 crate
 
@@ -71,14 +73,11 @@ VaultWatchEvent::RescanNeeded
 
 职责：
 
-- 长期运行主循环。
-- 启动时执行一次 `sync_once()`。
+- 长期运行主循环和重连退避。
+- 启动 `fns-sync-session`。
 - 接收 `fns-vault-watch` 的变化信号。
-- 做 debounce，把短时间内的大量文件事件合并成一次同步。
-- 做周期性兜底同步。
-- 做失败重试和指数退避。
-- 保证同一时间只有一个 sync 在跑。
-- 如果同步期间又有事件，记录 dirty 标记，在当前同步结束后再跑一轮。
+- 把变化信号转发给长期会话。
+- 在 session 断开或失败后做指数退避重连。
 
 不做：
 
@@ -87,6 +86,25 @@ VaultWatchEvent::RescanNeeded
 - 不自己实现文件分片。
 - 不直接修改 vault 文件。
 - 不直接修改 local store，除非以后有 daemon 自己的运行状态文件。
+
+### fns-sync-session
+
+职责：
+
+- 保持一个长期 WebSocket 连接。
+- 完成 Authorization、ClientInfo、JSON/protobuf 模式切换。
+- 启动后执行一次启动同步。
+- 持续处理服务端事件和 ack。
+- 接收 watcher 事件并做 debounce。
+- 将本地变更转换为增量 action，例如 `NoteModify`、`FileUploadCheck`、`FolderModify`、`SettingModify`、删除 action。
+- 处理服务端要求的文件上传/下载。
+
+不做：
+
+- 不直接监听文件系统。
+- 不做进程级守护和重连退避。
+- 不解析配置文件。
+- 不重新实现一次性同步扫描规划；启动同步通过当前长期 WebSocket 复用 `fns-sync-engine` 的 authenticated sync 流程。
 
 推荐入口：
 
@@ -124,6 +142,7 @@ CLI 后续只调用 daemon，不把长期运行状态机写进 `main.rs`。
 - `transfer.rs` 现在是一次同步会话内的传输队列，可以暂时留在 `fns-sync-engine`。
 - `checkpoint.rs` 是下载断点文件存储。它只服务传输恢复，后续如果继续膨胀，可以迁到 `fns-file-transfer` 或新建 `fns-transfer-state`。
 - `event_loop.rs` 目前属于 sync_once 的内部事件循环，暂时留在 `fns-sync-engine` 是合理的。
+- 长期运行期间不应反复调用 `sync_once()` 处理每个本地事件；这部分应由 `fns-sync-session` 通过长连接发送增量 action。
 
 ### fns-file-transfer
 
@@ -166,7 +185,6 @@ fns-transfer-state
 [daemon]
 watch-enabled = true
 debounce-ms = 1000
-full-sync-interval-seconds = 300
 retry-min-seconds = 5
 retry-max-seconds = 300
 ```
@@ -175,7 +193,6 @@ retry-max-seconds = 300
 
 - `watch_enabled: bool`
 - `debounce_ms: u64`
-- `full_sync_interval_seconds: u64`
 - `retry_min_seconds: u64`
 - `retry_max_seconds: u64`
 
@@ -229,14 +246,13 @@ CLI 应继续保持很薄：
    - 不做 rename 检测。
 
 2. 新增 `fns-daemon`。
-   - 调用 `SyncEngine::sync_once()`。
-   - 实现启动同步、watch debounce、周期同步、失败重试。
-   - 保证单次同步互斥。
+   - 启动并重连 `fns-sync-session`。
+   - 转发 watcher 事件。
+   - 实现失败重试。
 
 3. 扩展 `fns-config`。
    - 增加 `[daemon]` 配置段。
    - 默认启用 watch。
-   - 默认保留周期同步作为兜底。
 
 4. 扩展 CLI。
    - 增加 `daemon run`。
@@ -251,14 +267,12 @@ CLI 应继续保持很薄：
 建议第一版 daemon 行为如下：
 
 1. 启动后加载配置。
-2. 立即执行一次 `sync_once()`。
-3. 同时启动文件监听。
-4. 文件变化后等待 debounce 时间。
-5. debounce 到期后执行一次 `sync_once()`。
-6. 如果 sync 正在运行，只记录 dirty。
-7. 当前 sync 结束后，如果 dirty 为 true，再执行一轮。
-8. 如果 sync 失败，按 retry 配置退避重试。
-9. 即使没有文件事件，也按 full sync interval 周期同步一次。
+2. 启动文件监听。
+3. 启动 `fns-sync-session` 并建立长期 WebSocket。
+4. session 启动后执行一次启动同步。
+5. 文件变化后转发给 session。
+6. session 对本地事件做 debounce，并通过同一个 WebSocket 发送增量 action。
+7. 如果 session 失败或断开，daemon 按 retry 配置退避重连。
 
 这样可以先覆盖 headless 客户端最重要的长期运行需求，同时避免在 watcher 阶段过早做复杂 rename 检测。
 

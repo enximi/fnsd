@@ -39,23 +39,8 @@ impl SyncEngine {
 
     pub async fn sync_once(&self) -> Result<SyncOnceSummary> {
         info!(vault_root = %self.config.vault.root.display(), "starting sync once");
-        let vault_name = self.config.vault_name()?;
-        let scan_options = self.config.scan_options()?;
-        debug!("scanning vault");
-        let snapshot = scan_vault(self.config.vault.root.clone(), scan_options).await?;
         let vault = VaultFs::new(&self.config.vault.root)?;
         let mut store = LocalStore::open(&self.config.store.path)?;
-        let context = Some(uuid::Uuid::new_v4().to_string());
-        let batches =
-            SyncBatches::from_snapshot(snapshot, &store, context, self.options.missing_path_mode)?;
-        info!(
-            notes = batches.notes.items.len(),
-            files = batches.files.items.len(),
-            folders = batches.folders.items.len(),
-            settings = batches.settings.items.len(),
-            "prepared local sync batches"
-        );
-
         let ws_url = self
             .config
             .server
@@ -68,20 +53,45 @@ impl SyncEngine {
             .await?;
         info!("authorization accepted");
         self.send_client_info(&mut ws, &vault, &mut store).await?;
-        self.send_sync_requests(&mut ws, &vault_name, &batches)
-            .await?;
+
+        let summary = self.sync_authenticated(&mut ws, &vault, &mut store).await?;
+        store.save()?;
+        Ok(summary)
+    }
+
+    pub async fn sync_authenticated(
+        &self,
+        ws: &mut FnsWsClient,
+        vault: &VaultFs,
+        store: &mut LocalStore,
+    ) -> Result<SyncOnceSummary> {
+        let vault_name = self.config.vault_name()?;
+        let scan_options = self.config.scan_options()?;
+        debug!("scanning vault");
+        let snapshot = scan_vault(self.config.vault.root.clone(), scan_options).await?;
+        let context = Some(uuid::Uuid::new_v4().to_string());
+        let batches =
+            SyncBatches::from_snapshot(snapshot, store, context, self.options.missing_path_mode)?;
+        info!(
+            notes = batches.notes.items.len(),
+            files = batches.files.items.len(),
+            folders = batches.folders.items.len(),
+            settings = batches.settings.items.len(),
+            "prepared local sync batches"
+        );
+
+        self.send_sync_requests(ws, &vault_name, &batches).await?;
 
         refresh_sent_hash_index(
-            &mut store,
+            store,
             &batches.notes,
             &batches.files,
             &batches.folders,
             &batches.settings,
         );
         let events = self
-            .drain_sync_events(&mut ws, &vault_name, &vault, &mut store)
+            .drain_sync_events(ws, &vault_name, vault, store)
             .await?;
-        store.save()?;
         info!(
             events = events.text_events,
             remote_writes = events.remote_writes,

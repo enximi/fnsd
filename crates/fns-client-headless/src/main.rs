@@ -3,6 +3,7 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 use fns_config::AppConfig;
+use fns_daemon::Daemon;
 use fns_sync_engine::SyncEngine;
 use tracing::{error, info};
 use tracing_appender::non_blocking::WorkerGuard;
@@ -37,6 +38,10 @@ enum Command {
         #[command(subcommand)]
         command: SyncCommand,
     },
+    Daemon {
+        #[command(subcommand)]
+        command: DaemonCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -47,6 +52,11 @@ enum ConfigCommand {
 #[derive(Debug, Subcommand)]
 enum SyncCommand {
     Once,
+}
+
+#[derive(Debug, Subcommand)]
+enum DaemonCommand {
+    Run,
 }
 
 #[tokio::main]
@@ -98,6 +108,13 @@ async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 summary.events.remote_mtime_updates,
                 summary.events.acks
             );
+        }
+        Command::Daemon {
+            command: DaemonCommand::Run,
+        } => {
+            info!(config = %cli.config.display(), "starting daemon");
+            let config = AppConfig::load(&cli.config)?;
+            Daemon::new(config).run().await?;
         }
     }
 
