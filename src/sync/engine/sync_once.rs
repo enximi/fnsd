@@ -107,7 +107,7 @@ impl SyncEngine {
     }
 
     fn client_info(&self) -> ClientDescriptor {
-        let mut info = ClientDescriptor::headless(
+        let mut info = ClientDescriptor::fnsd(
             self.config.client.name.clone(),
             self.config.client.version.clone(),
         );

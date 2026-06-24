@@ -253,7 +253,7 @@ async fn send_client_info(
     store: &mut LocalStore,
 ) -> Result<()> {
     let mut info =
-        ClientDescriptor::headless(config.client.name.clone(), config.client.version.clone());
+        ClientDescriptor::fnsd(config.client.name.clone(), config.client.version.clone());
     info.protobuf = config.client.protobuf;
     ws.send_client_info(&info).await?;
 

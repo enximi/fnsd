@@ -15,14 +15,14 @@ use tracing_subscriber::{
 };
 
 #[derive(Debug, Parser)]
-#[command(name = "fns-client-headless")]
-#[command(version, about = "Headless FNS client")]
+#[command(name = "fnsd")]
+#[command(version, about = "FNS sync daemon")]
 struct Cli {
-    #[arg(short, long, global = true, default_value = "fns-headless.toml")]
+    #[arg(short, long, global = true, default_value = "fnsd.toml")]
     config: PathBuf,
-    #[arg(long, global = true, default_value = "info", env = "FNS_HEADLESS_LOG")]
+    #[arg(long, global = true, default_value = "info", env = "FNSD_LOG")]
     log_level: String,
-    #[arg(long, global = true, env = "FNS_HEADLESS_LOG_FILE")]
+    #[arg(long, global = true, env = "FNSD_LOG_FILE")]
     log_file: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,

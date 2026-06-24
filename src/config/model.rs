@@ -8,7 +8,7 @@ use url::Url;
 use crate::config::{ConfigError, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(default, rename_all = "kebab-case")]
+#[serde(default)]
 pub struct AppConfig {
     pub server: ServerConfig,
     pub vault: VaultConfig,
@@ -38,9 +38,16 @@ impl AppConfig {
         let builder = config::Config::builder()
             .add_source(config::File::from(path.as_ref()))
             .add_source(
-                config::Environment::with_prefix("FNS_HEADLESS")
+                config::Environment::with_prefix("FNSD")
                     .separator("__")
-                    .prefix_separator("_"),
+                    .prefix_separator("_")
+                    .try_parsing(true)
+                    .list_separator(",")
+                    .with_list_parse_key("scan.custom_config_dirs")
+                    .with_list_parse_key("scan.ignore_rules")
+                    .with_list_parse_key("scan.ignore_extensions")
+                    .with_list_parse_key("scan.whitelist_rules")
+                    .ignore_empty(true),
             );
         let config: Self = builder.build()?.try_deserialize()?;
         config.validate()?;
@@ -49,7 +56,7 @@ impl AppConfig {
 
     pub fn validate(&self) -> Result<()> {
         required("server.url", &self.server.url)?;
-        required("server.api-token", &self.server.api_token)?;
+        required("server.api_token", &self.server.api_token)?;
 
         self.server.parsed_url()?;
 
@@ -107,7 +114,7 @@ impl AppConfig {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
-#[serde(default, rename_all = "kebab-case")]
+#[serde(default)]
 pub struct ServerConfig {
     pub url: String,
     pub api_token: String,
@@ -154,14 +161,14 @@ impl ServerConfig {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
-#[serde(default, rename_all = "kebab-case")]
+#[serde(default)]
 pub struct VaultConfig {
     pub name: String,
     pub root: PathBuf,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(default, rename_all = "kebab-case")]
+#[serde(default)]
 pub struct StoreConfig {
     pub path: PathBuf,
 }
@@ -175,7 +182,7 @@ impl Default for StoreConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(default, rename_all = "kebab-case")]
+#[serde(default)]
 pub struct ScanConfig {
     pub obsidian_config_dir: Option<String>,
     pub custom_config_dirs: Vec<String>,
@@ -209,7 +216,7 @@ impl Default for ScanConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(default, rename_all = "kebab-case")]
+#[serde(default)]
 pub struct ClientConfig {
     pub name: String,
     pub version: String,
@@ -219,15 +226,15 @@ pub struct ClientConfig {
 impl Default for ClientConfig {
     fn default() -> Self {
         Self {
-            name: "fns-headless".to_string(),
+            name: "fnsd".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
-            protobuf: false,
+            protobuf: true,
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(default, rename_all = "kebab-case")]
+#[serde(default)]
 pub struct SyncConfig {
     pub offline_delete_sync_enabled: bool,
     pub transfer_concurrency_enabled: bool,
@@ -247,7 +254,7 @@ impl Default for SyncConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(default, rename_all = "kebab-case")]
+#[serde(default)]
 pub struct DaemonConfig {
     pub watch_enabled: bool,
     pub debounce_ms: u64,
