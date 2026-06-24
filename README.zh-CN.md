@@ -135,7 +135,7 @@ $env:FNSD_SCAN__IGNORE_EXTENSIONS = "tmp,bak"
 docker run --rm ghcr.io/enximi/fnsd:latest --help
 ```
 
-也可以使用版本 tag，例如 `ghcr.io/enximi/fnsd:v0.1.0`。
+也可以使用版本 tag，例如 `ghcr.io/enximi/fnsd:v0.1.1`。
 
 ### Docker Compose
 
