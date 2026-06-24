@@ -11,6 +11,7 @@ members = [
     "crates/fns-sync-engine",
     "crates/fns-sync-plan",
     "crates/fns-vault-fs",
+    "crates/fns-vault-watch",
     "crates/fns-ws-client",
 ]
 resolver = "3"
@@ -29,8 +30,10 @@ fns-sync-apply = { path = "crates/fns-sync-apply" }
 fns-sync-engine = { path = "crates/fns-sync-engine" }
 fns-sync-plan = { path = "crates/fns-sync-plan" }
 fns-vault-fs = { path = "crates/fns-vault-fs" }
+fns-vault-watch = { path = "crates/fns-vault-watch" }
 fns-ws-client = { path = "crates/fns-ws-client" }
 futures-util = "0.3"
+notify = "8"
 prost = "0.14"
 regex = "1"
 serde = { version = "1", features = ["derive"] }
