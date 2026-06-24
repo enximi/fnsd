@@ -3,7 +3,10 @@ use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
 use fns_core::VaultPath;
 use fns_vault_fs::VaultScanOptions;
-use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{
+    Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
+    event::{ModifyKind, RenameMode},
+};
 use tracing::debug;
 
 use crate::{Result, VaultWatchError, error::io, event::VaultWatchEvent};
@@ -73,6 +76,10 @@ fn normalize_event(root: &Path, options: &VaultScanOptions, event: Event) -> Vec
         return Vec::new();
     }
 
+    if let Some(event) = normalize_rename_event(root, options, &event) {
+        return event.into_iter().collect();
+    }
+
     if event.paths.is_empty() {
         return vec![VaultWatchEvent::RescanNeeded];
     }
@@ -96,6 +103,87 @@ fn normalize_event(root: &Path, options: &VaultScanOptions, event: Event) -> Vec
     }
 
     events
+}
+
+fn normalize_rename_event(
+    root: &Path,
+    options: &VaultScanOptions,
+    event: &Event,
+) -> Option<Vec<VaultWatchEvent>> {
+    match event.kind {
+        EventKind::Modify(ModifyKind::Name(RenameMode::Both)) if event.paths.len() >= 2 => {}
+        EventKind::Modify(ModifyKind::Name(RenameMode::From)) if !event.paths.is_empty() => {
+            return Some(normalize_rename_side(
+                root,
+                options,
+                &event.paths[0],
+                RenameSide::From,
+            ));
+        }
+        EventKind::Modify(ModifyKind::Name(RenameMode::To)) if !event.paths.is_empty() => {
+            return Some(normalize_rename_side(
+                root,
+                options,
+                &event.paths[0],
+                RenameSide::To,
+            ));
+        }
+        _ => return None,
+    }
+
+    let old_path = match vault_path_from_event_path(root, &event.paths[0]) {
+        PathNormalization::Vault(path) => path,
+        PathNormalization::Root | PathNormalization::Unknown => {
+            return Some(vec![VaultWatchEvent::RescanNeeded]);
+        }
+        PathNormalization::OutsideRoot => return Some(Vec::new()),
+    };
+    let new_path = match vault_path_from_event_path(root, &event.paths[1]) {
+        PathNormalization::Vault(path) => path,
+        PathNormalization::Root | PathNormalization::Unknown => {
+            return Some(vec![VaultWatchEvent::RescanNeeded]);
+        }
+        PathNormalization::OutsideRoot => return Some(Vec::new()),
+    };
+
+    let old_ignored = options.should_ignore(&old_path);
+    let new_ignored = options.should_ignore(&new_path);
+
+    match (old_ignored, new_ignored) {
+        (false, false) => Some(vec![VaultWatchEvent::Renamed { old_path, new_path }]),
+        (true, false) => Some(vec![VaultWatchEvent::Changed { path: new_path }]),
+        (false, true) => Some(vec![VaultWatchEvent::Changed { path: old_path }]),
+        (true, true) => Some(Vec::new()),
+    }
+}
+
+enum RenameSide {
+    From,
+    To,
+}
+
+fn normalize_rename_side(
+    root: &Path,
+    options: &VaultScanOptions,
+    path: &Path,
+    side: RenameSide,
+) -> Vec<VaultWatchEvent> {
+    let path = match vault_path_from_event_path(root, path) {
+        PathNormalization::Vault(path) => path,
+        PathNormalization::Root | PathNormalization::Unknown => {
+            return vec![VaultWatchEvent::RescanNeeded];
+        }
+        PathNormalization::OutsideRoot => return Vec::new(),
+    };
+
+    if options.should_ignore(&path) {
+        return Vec::new();
+    }
+
+    match side {
+        RenameSide::From => vec![VaultWatchEvent::RenameFrom { path }],
+        RenameSide::To => vec![VaultWatchEvent::RenameTo { path }],
+    }
 }
 
 enum PathNormalization {

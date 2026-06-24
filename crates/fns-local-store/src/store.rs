@@ -73,6 +73,21 @@ impl LocalStore {
         self.state.hashes.by_kind_mut(kind).remove(path.as_str())
     }
 
+    pub fn rename_hash_tree(&mut self, old_path: &VaultPath, new_path: &VaultPath) {
+        for kind in [
+            ResourceKind::Note,
+            ResourceKind::File,
+            ResourceKind::Folder,
+            ResourceKind::Setting,
+        ] {
+            rename_hash_tree_for_kind(
+                self.state.hashes.by_kind_mut(kind),
+                old_path.as_str(),
+                new_path.as_str(),
+            );
+        }
+    }
+
     pub fn all_hash_paths(&self, kind: ResourceKind) -> Result<Vec<VaultPath>> {
         self.state
             .hashes
@@ -223,5 +238,33 @@ fn pop_front<T>(items: &mut Vec<T>) -> Option<T> {
         None
     } else {
         Some(items.remove(0))
+    }
+}
+
+fn rename_hash_tree_for_kind(
+    entries: &mut std::collections::BTreeMap<String, HashEntry>,
+    old_path: &str,
+    new_path: &str,
+) {
+    let old_prefix = format!("{old_path}/");
+    let new_prefix = format!("{new_path}/");
+    let moved = entries
+        .iter()
+        .filter_map(|(path, entry)| {
+            let target = if path == old_path {
+                Some(new_path.to_string())
+            } else {
+                path.strip_prefix(&old_prefix)
+                    .map(|suffix| format!("{new_prefix}{suffix}"))
+            }?;
+            Some((path.clone(), target, entry.clone()))
+        })
+        .collect::<Vec<_>>();
+
+    for (old_path, _, _) in &moved {
+        entries.remove(old_path);
+    }
+    for (_, new_path, entry) in moved {
+        entries.insert(new_path, entry);
     }
 }

@@ -14,7 +14,7 @@ use tokio::sync::mpsc;
 use tokio::time::{Instant, sleep_until};
 use tracing::{debug, info, warn};
 
-use crate::{Result, SyncSessionError, local_change::send_local_change};
+use crate::{Result, SyncSessionError, local_change::send_local_changes};
 
 #[derive(Debug)]
 pub struct SyncSession {
@@ -115,9 +115,15 @@ impl SyncSession {
         store: &mut LocalStore,
         pending_events: &mut PendingWatchEvents,
     ) -> Result<()> {
-        for change in pending_events.take_all() {
-            send_local_change(ws, vault_name, vault, store, &self.config, change).await?;
-        }
+        send_local_changes(
+            ws,
+            vault_name,
+            vault,
+            store,
+            &self.config,
+            pending_events.take_all(),
+        )
+        .await?;
         Ok(())
     }
 
@@ -210,6 +216,9 @@ fn handle_command(
 #[derive(Debug, Default)]
 struct PendingWatchEvents {
     paths: BTreeSet<fns_core::VaultPath>,
+    rename_from: Vec<fns_core::VaultPath>,
+    rename_to: Vec<fns_core::VaultPath>,
+    renames: Vec<(fns_core::VaultPath, fns_core::VaultPath)>,
     rescan_needed: bool,
 }
 
@@ -217,7 +226,43 @@ impl PendingWatchEvents {
     fn push(&mut self, event: VaultWatchEvent) {
         match event {
             VaultWatchEvent::Changed { path } => {
+                if self
+                    .renames
+                    .iter()
+                    .any(|(old_path, new_path)| old_path == &path || new_path == &path)
+                {
+                    return;
+                }
                 self.paths.insert(path);
+            }
+            VaultWatchEvent::RenameFrom { path } => {
+                if self.renames.iter().any(|(old_path, _)| old_path == &path) {
+                    return;
+                }
+                self.paths.remove(&path);
+                if let Some(new_path) = pop_front(&mut self.rename_to) {
+                    self.push_rename(path, new_path);
+                } else {
+                    self.rename_from.push(path);
+                }
+            }
+            VaultWatchEvent::RenameTo { path } => {
+                if self.renames.iter().any(|(_, new_path)| new_path == &path) {
+                    return;
+                }
+                self.paths.remove(&path);
+                if let Some(old_path) = pop_front(&mut self.rename_from) {
+                    self.push_rename(old_path, path);
+                } else {
+                    self.rename_to.push(path);
+                }
+            }
+            VaultWatchEvent::Renamed { old_path, new_path } => {
+                self.paths.remove(&old_path);
+                self.paths.remove(&new_path);
+                self.rename_from.retain(|path| path != &old_path);
+                self.rename_to.retain(|path| path != &new_path);
+                self.push_rename(old_path, new_path);
             }
             VaultWatchEvent::RescanNeeded => {
                 self.rescan_needed = true;
@@ -233,11 +278,44 @@ impl PendingWatchEvents {
         }
 
         events.extend(
+            std::mem::take(&mut self.renames)
+                .into_iter()
+                .map(|(old_path, new_path)| VaultWatchEvent::Renamed { old_path, new_path }),
+        );
+        events.extend(
+            std::mem::take(&mut self.rename_from)
+                .into_iter()
+                .map(|path| VaultWatchEvent::Changed { path }),
+        );
+        events.extend(
+            std::mem::take(&mut self.rename_to)
+                .into_iter()
+                .map(|path| VaultWatchEvent::Changed { path }),
+        );
+        events.extend(
             std::mem::take(&mut self.paths)
                 .into_iter()
                 .map(|path| VaultWatchEvent::Changed { path }),
         );
         events
+    }
+
+    fn push_rename(&mut self, old_path: fns_core::VaultPath, new_path: fns_core::VaultPath) {
+        if self.renames.iter().any(|(existing_old, existing_new)| {
+            existing_old == &old_path && existing_new == &new_path
+        }) {
+            return;
+        }
+
+        self.renames.push((old_path, new_path));
+    }
+}
+
+fn pop_front<T>(items: &mut Vec<T>) -> Option<T> {
+    if items.is_empty() {
+        None
+    } else {
+        Some(items.remove(0))
     }
 }
 

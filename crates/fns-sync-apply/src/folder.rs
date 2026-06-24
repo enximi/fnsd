@@ -63,6 +63,7 @@ pub(crate) fn apply_rename(
         vault,
         store,
     )?;
+    store.rename_hash_tree(&rename.old_path, &rename.path);
     store.set_sync_time(ResourceKind::Folder, rename.last_time);
     Ok(EventOutcome::RemoteRename {
         kind: ResourceKind::Folder,
