@@ -1,7 +1,7 @@
 use std::{collections::BTreeSet, time::Duration};
 
 use fns_config::AppConfig;
-use fns_core::{ResourceKind, VaultName};
+use fns_core::{ResourceKind, VaultName, VaultPath};
 use fns_file_transfer::{DownloadSession, build_file_get_request, build_upload_plan};
 use fns_local_store::LocalStore;
 use fns_protocol::Action;
@@ -41,6 +41,7 @@ impl SyncSession {
         drain_startup_watch_events(&mut commands);
         let mut pending_change = None::<Instant>;
         let mut pending_events = PendingWatchEvents::default();
+        let mut remote_echoes = RemoteEchoes::default();
         let mut downloads = ActiveDownloads::default();
 
         loop {
@@ -52,20 +53,20 @@ impl SyncSession {
                                 self.handle_pending_changes(&mut ws, &vault_name, &vault, &mut store, &mut pending_events).await?;
                             }
                         command = commands.recv() => {
-                            handle_command(command, &mut pending_change, &mut pending_events, self.options.debounce)?;
+                            handle_command(command, &mut pending_change, &mut pending_events, &mut remote_echoes, self.options.debounce)?;
                         }
                         event = ws.next_event() => {
-                            self.handle_ws_event(event?, &mut ws, &vault_name, &vault, &mut store, &mut downloads).await?;
+                            self.handle_ws_event(event?, &mut ws, &vault_name, &vault, &mut store, &mut downloads, &mut remote_echoes).await?;
                         }
                     }
                 }
                 None => {
                     tokio::select! {
                         command = commands.recv() => {
-                            handle_command(command, &mut pending_change, &mut pending_events, self.options.debounce)?;
+                            handle_command(command, &mut pending_change, &mut pending_events, &mut remote_echoes, self.options.debounce)?;
                         }
                         event = ws.next_event() => {
-                            self.handle_ws_event(event?, &mut ws, &vault_name, &vault, &mut store, &mut downloads).await?;
+                            self.handle_ws_event(event?, &mut ws, &vault_name, &vault, &mut store, &mut downloads, &mut remote_echoes).await?;
                         }
                     }
                 }
@@ -135,11 +136,13 @@ impl SyncSession {
         vault: &VaultFs,
         store: &mut LocalStore,
         downloads: &mut ActiveDownloads,
+        remote_echoes: &mut RemoteEchoes,
     ) -> Result<()> {
         match event {
             WsEvent::Text(frame) => {
                 let outcome = apply_text_event(&frame, vault, store)?;
                 debug!(?outcome, "applied session websocket event");
+                remote_echoes.record_outcome(&outcome);
                 handle_outcome(
                     ws,
                     vault_name,
@@ -197,6 +200,7 @@ fn handle_command(
     command: Option<SyncSessionCommand>,
     pending_change: &mut Option<Instant>,
     pending_events: &mut PendingWatchEvents,
+    remote_echoes: &mut RemoteEchoes,
     debounce: Duration,
 ) -> Result<()> {
     let Some(command) = command else {
@@ -205,12 +209,190 @@ fn handle_command(
 
     match command {
         SyncSessionCommand::VaultEvent(event) => {
+            if remote_echoes.consume(&event) {
+                debug!(?event, "ignored remote filesystem echo");
+                return Ok(());
+            }
             pending_events.push(event);
             *pending_change = Some(Instant::now() + debounce);
         }
     }
 
     Ok(())
+}
+
+#[derive(Debug, Default)]
+struct RemoteEchoes {
+    renames: Vec<EchoRename>,
+}
+
+impl RemoteEchoes {
+    fn record_outcome(&mut self, outcome: &EventOutcome) {
+        match outcome {
+            EventOutcome::RemoteWrite { .. }
+            | EventOutcome::RemoteDelete { .. }
+            | EventOutcome::RemoteMtimeUpdate { .. } => {}
+            EventOutcome::RemoteRename {
+                kind,
+                old_path,
+                new_path,
+            } => {
+                self.record_rename(*kind, old_path.clone(), new_path.clone());
+            }
+            EventOutcome::AuthorizationAccepted
+            | EventOutcome::Ack { .. }
+            | EventOutcome::SyncEnd { .. }
+            | EventOutcome::NeedNoteUpload(_)
+            | EventOutcome::NeedFileUpload(_)
+            | EventOutcome::NeedFileDownload(_)
+            | EventOutcome::NeedFileDownloadSession(_)
+            | EventOutcome::NeedSettingUpload(_)
+            | EventOutcome::Ignored => {}
+        }
+    }
+
+    fn record_rename(&mut self, kind: ResourceKind, old_path: VaultPath, new_path: VaultPath) {
+        self.renames.push(EchoRename {
+            kind,
+            old_path,
+            new_path,
+            old_seen: false,
+            new_seen: false,
+            expires_at: echo_expires_at(),
+        });
+    }
+
+    fn consume(&mut self, event: &VaultWatchEvent) -> bool {
+        self.prune_expired();
+
+        match event {
+            VaultWatchEvent::Changed { path } => self.consume_rename_changed(path),
+            VaultWatchEvent::RenameFrom { path } => self.consume_rename_from(path),
+            VaultWatchEvent::RenameTo { path } => self.consume_rename_to(path),
+            VaultWatchEvent::Renamed { old_path, new_path } => {
+                self.consume_rename(old_path, new_path)
+            }
+            VaultWatchEvent::RescanNeeded => false,
+        }
+    }
+
+    fn consume_rename_changed(&mut self, path: &VaultPath) -> bool {
+        let Some(index) = self
+            .renames
+            .iter_mut()
+            .position(|echo| echo.mark_changed(path))
+        else {
+            return false;
+        };
+        if self.renames[index].is_complete() {
+            self.renames.remove(index);
+        }
+        true
+    }
+
+    fn consume_rename_from(&mut self, path: &VaultPath) -> bool {
+        self.consume_rename_side(path, RenameEchoSide::Old)
+    }
+
+    fn consume_rename_to(&mut self, path: &VaultPath) -> bool {
+        self.consume_rename_side(path, RenameEchoSide::New)
+    }
+
+    fn consume_rename_side(&mut self, path: &VaultPath, side: RenameEchoSide) -> bool {
+        let Some(index) = self
+            .renames
+            .iter_mut()
+            .position(|echo| echo.mark_side(path, side))
+        else {
+            return false;
+        };
+        if self.renames[index].is_complete() {
+            self.renames.remove(index);
+        }
+        true
+    }
+
+    fn consume_rename(&mut self, old_path: &VaultPath, new_path: &VaultPath) -> bool {
+        let Some(index) = self
+            .renames
+            .iter()
+            .position(|echo| echo.matches_rename(old_path, new_path))
+        else {
+            return false;
+        };
+        self.renames.remove(index);
+        true
+    }
+
+    fn prune_expired(&mut self) {
+        let now = Instant::now();
+        self.renames.retain(|echo| echo.expires_at > now);
+    }
+}
+
+#[derive(Debug)]
+struct EchoRename {
+    kind: ResourceKind,
+    old_path: VaultPath,
+    new_path: VaultPath,
+    old_seen: bool,
+    new_seen: bool,
+    expires_at: Instant,
+}
+
+impl EchoRename {
+    fn mark_changed(&mut self, path: &VaultPath) -> bool {
+        let old_matches = paths_match(self.kind, &self.old_path, path);
+        let new_matches = paths_match(self.kind, &self.new_path, path);
+        self.old_seen |= old_matches;
+        self.new_seen |= new_matches;
+        old_matches || new_matches
+    }
+
+    fn mark_side(&mut self, path: &VaultPath, side: RenameEchoSide) -> bool {
+        let matches = match side {
+            RenameEchoSide::Old => paths_match(self.kind, &self.old_path, path),
+            RenameEchoSide::New => paths_match(self.kind, &self.new_path, path),
+        };
+        if !matches {
+            return false;
+        }
+
+        match side {
+            RenameEchoSide::Old => self.old_seen = true,
+            RenameEchoSide::New => self.new_seen = true,
+        }
+        true
+    }
+
+    fn matches_rename(&self, old_path: &VaultPath, new_path: &VaultPath) -> bool {
+        paths_match(self.kind, &self.old_path, old_path)
+            && paths_match(self.kind, &self.new_path, new_path)
+    }
+
+    fn is_complete(&self) -> bool {
+        self.old_seen && self.new_seen
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum RenameEchoSide {
+    Old,
+    New,
+}
+
+fn paths_match(kind: ResourceKind, expected: &VaultPath, actual: &VaultPath) -> bool {
+    expected == actual || (kind == ResourceKind::Folder && is_child_path(expected, actual))
+}
+
+fn is_child_path(parent: &VaultPath, path: &VaultPath) -> bool {
+    path.as_str()
+        .strip_prefix(parent.as_str())
+        .is_some_and(|suffix| suffix.starts_with('/'))
+}
+
+fn echo_expires_at() -> Instant {
+    Instant::now() + Duration::from_secs(10)
 }
 
 #[derive(Debug, Default)]

@@ -9,7 +9,7 @@ use fns_protocol::{
     SettingDeleteRequest,
 };
 use fns_sync_plan::{build_note_modify_request, build_setting_modify_request};
-use fns_vault_fs::VaultFs;
+use fns_vault_fs::{VaultFs, VaultScanOptions};
 use fns_vault_watch::VaultWatchEvent;
 use fns_ws_client::FnsWsClient;
 use tracing::{debug, warn};
@@ -120,9 +120,15 @@ async fn send_path_change(
 
     match metadata {
         Some(metadata) if metadata.file_type().is_dir() => {
+            if is_current_path_unchanged(vault, store, &scan_options, path, &metadata)? {
+                return Ok(());
+            }
             send_folder_modify(ws, vault_name, store, path, &metadata).await?;
         }
         Some(metadata) if metadata.file_type().is_file() => {
+            if is_current_path_unchanged(vault, store, &scan_options, path, &metadata)? {
+                return Ok(());
+            }
             if scan_options.is_setting_path(path) {
                 send_setting_modify(ws, vault_name, vault, store, path).await?;
             } else if is_note_path(path) {
@@ -133,6 +139,9 @@ async fn send_path_change(
         }
         Some(_) => {}
         None => {
+            if is_deleted_path_unchanged(store, path) {
+                return Ok(());
+            }
             send_delete_by_known_kind(ws, vault_name, store, path).await?;
         }
     }
@@ -448,6 +457,63 @@ fn can_rename_file(
 fn can_rename_folder(vault: &VaultFs, old_path: &VaultPath, new_path: &VaultPath) -> bool {
     let new_absolute = new_path.to_path_buf_under(vault.root());
     new_absolute.is_dir() && !old_path.as_str().is_empty()
+}
+
+fn is_current_path_unchanged(
+    vault: &VaultFs,
+    store: &LocalStore,
+    scan_options: &VaultScanOptions,
+    path: &VaultPath,
+    metadata: &std::fs::Metadata,
+) -> Result<bool> {
+    if metadata.file_type().is_dir() {
+        return Ok(store.hash_entry(ResourceKind::Folder, path).is_some());
+    }
+
+    if scan_options.is_setting_path(path) {
+        return text_file_unchanged(ResourceKind::Setting, vault, store, path);
+    }
+
+    if is_note_path(path) {
+        return text_file_unchanged(ResourceKind::Note, vault, store, path);
+    }
+
+    binary_file_unchanged(vault, store, path)
+}
+
+fn text_file_unchanged(
+    kind: ResourceKind,
+    vault: &VaultFs,
+    store: &LocalStore,
+    path: &VaultPath,
+) -> Result<bool> {
+    let Some(entry) = store.hash_entry(kind, path) else {
+        return Ok(false);
+    };
+    let content = vault.read_text(path)?;
+    Ok(entry.content_hash()?.as_ref() == Some(&text_content_hash(&content)))
+}
+
+fn binary_file_unchanged(vault: &VaultFs, store: &LocalStore, path: &VaultPath) -> Result<bool> {
+    let Some(entry) = store.hash_entry(ResourceKind::File, path) else {
+        return Ok(false);
+    };
+    let bytes = vault.read_bytes(path)?;
+    Ok(
+        entry.content_hash()?.as_ref() == Some(&file_content_hash(&bytes))
+            && entry.size == bytes.len() as u64,
+    )
+}
+
+fn is_deleted_path_unchanged(store: &LocalStore, path: &VaultPath) -> bool {
+    [
+        ResourceKind::Note,
+        ResourceKind::File,
+        ResourceKind::Folder,
+        ResourceKind::Setting,
+    ]
+    .into_iter()
+    .all(|kind| store.hash_entry(kind, path).is_none())
 }
 
 fn is_note_path(path: &VaultPath) -> bool {
