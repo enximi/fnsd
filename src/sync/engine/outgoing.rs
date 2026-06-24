@@ -33,15 +33,14 @@ pub(crate) async fn send_note_modify(
     )?;
 
     ws.send_json(Action::NoteModify, &request).await?;
-    store.set_pending_modify(ResourceKind::Note, path, &content_hash);
+    store.set_pending_modify(ResourceKind::Note, path, &content_hash)?;
     store.set_content_hash(
         ResourceKind::Note,
         path,
         Some(content_hash),
         metadata.mtime,
         metadata.size,
-    );
-    store.save()?;
+    )?;
     Ok(())
 }
 
@@ -66,15 +65,14 @@ pub(crate) async fn send_setting_modify(
     )?;
 
     ws.send_json(Action::SettingModify, &request).await?;
-    store.set_pending_modify(ResourceKind::Setting, path, &content_hash);
+    store.set_pending_modify(ResourceKind::Setting, path, &content_hash)?;
     store.set_content_hash(
         ResourceKind::Setting,
         path,
         Some(content_hash),
         metadata.mtime,
         metadata.size,
-    );
-    store.save()?;
+    )?;
     Ok(())
 }
 
@@ -118,20 +116,18 @@ pub(crate) async fn send_file_upload(
                     plan.content_hash.clone(),
                     chunk.chunk_index(),
                 ),
-            );
-            store.save()?;
+            )?;
         }
     }
 
-    store.set_pending_modify(ResourceKind::File, &plan.path, &plan.content_hash);
+    store.set_pending_modify(ResourceKind::File, &plan.path, &plan.content_hash)?;
     store.set_content_hash(
         ResourceKind::File,
         &plan.path,
         Some(plan.content_hash),
         plan.mtime,
         plan.size,
-    );
-    store.save()?;
+    )?;
     debug!(path = %plan.path, "file upload sent and pending state saved");
     Ok(())
 }
@@ -158,7 +154,7 @@ async fn send_file_chunk(
 }
 
 fn resume_start_chunk(store: &LocalStore, plan: &crate::sync::transfer::UploadPlan) -> Result<u32> {
-    let Some(checkpoint) = store.file_upload_checkpoint(&plan.path) else {
+    let Some(checkpoint) = store.file_upload_checkpoint(&plan.path)? else {
         return Ok(0);
     };
 

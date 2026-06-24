@@ -156,7 +156,6 @@ impl SyncSession {
                     outcome,
                 )
                 .await?;
-                store.save()?;
             }
             WsEvent::FileChunk(chunk) => {
                 downloads.accept_chunk(vault, store, chunk)?;

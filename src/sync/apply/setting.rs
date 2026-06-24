@@ -77,8 +77,8 @@ pub(crate) fn modify_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<Ev
     let message: SettingModifyAckMessage = frame.decode_response_data()?;
     let path = VaultPath::new(&message.path)?;
     let last_time = RemoteMillis::new(message.last_time)?;
-    store.remove_pending_modify(ResourceKind::Setting, &path);
-    store.set_sync_time(ResourceKind::Setting, last_time);
+    store.remove_pending_modify(ResourceKind::Setting, &path)?;
+    store.set_sync_time(ResourceKind::Setting, last_time)?;
     Ok(EventOutcome::Ack {
         kind: ResourceKind::Setting,
         path,

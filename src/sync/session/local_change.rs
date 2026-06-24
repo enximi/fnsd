@@ -1,6 +1,6 @@
 use crate::config::AppConfig;
 
-use crate::core::{RemoteMillis, ResourceKind, VaultName, VaultPath};
+use crate::core::{ContentHash, RemoteMillis, ResourceKind, VaultName, VaultPath};
 use crate::hash::{file_content_hash, path_hash, text_content_hash};
 use crate::protocol::{
     Action, FileDeleteRequest, FileRenameRequest, FileUploadCheckRequest, FolderCreateRequest,
@@ -81,17 +81,17 @@ async fn send_path_rename(
         (false, false) => {}
     }
 
-    if store.hash_entry(ResourceKind::Note, old_path).is_some() {
+    if store.hash_entry(ResourceKind::Note, old_path)?.is_some() {
         if can_rename_note(vault, store, old_path, new_path)? {
             return send_note_rename(ws, vault_name, store, old_path, new_path).await;
         }
-    } else if store.hash_entry(ResourceKind::File, old_path).is_some() {
+    } else if store.hash_entry(ResourceKind::File, old_path)?.is_some() {
         if can_rename_file(vault, store, old_path, new_path)?
             && !scan_options.is_setting_path(new_path)
         {
             return send_file_rename(ws, vault_name, store, old_path, new_path).await;
         }
-    } else if store.hash_entry(ResourceKind::Folder, old_path).is_some() {
+    } else if store.hash_entry(ResourceKind::Folder, old_path)?.is_some() {
         if can_rename_folder(vault, old_path, new_path) {
             return send_folder_rename(ws, vault_name, store, old_path, new_path).await;
         }
@@ -139,7 +139,7 @@ async fn send_path_change(
         }
         Some(_) => {}
         None => {
-            if is_deleted_path_unchanged(store, path) {
+            if is_deleted_path_unchanged(store, path)? {
                 return Ok(());
             }
             send_delete_by_known_kind(ws, vault_name, store, path).await?;
@@ -156,9 +156,7 @@ async fn send_note_rename(
     old_path: &VaultPath,
     new_path: &VaultPath,
 ) -> Result<()> {
-    let content_hash = store
-        .hash_entry(ResourceKind::Note, old_path)
-        .and_then(|entry| entry.content_hash().ok().flatten());
+    let content_hash = stored_content_hash(store, ResourceKind::Note, old_path)?;
     let request = NoteRenameRequest {
         vault: vault_name.to_string(),
         path: new_path.to_string(),
@@ -168,8 +166,7 @@ async fn send_note_rename(
     };
 
     ws.send_json(Action::NoteRename, &request).await?;
-    move_hash_entry(ResourceKind::Note, old_path, new_path, content_hash, store);
-    store.save()?;
+    move_hash_entry(ResourceKind::Note, old_path, new_path, content_hash, store)?;
     debug!(old_path = %old_path, new_path = %new_path, "sent note rename from watch event");
     Ok(())
 }
@@ -181,9 +178,7 @@ async fn send_file_rename(
     old_path: &VaultPath,
     new_path: &VaultPath,
 ) -> Result<()> {
-    let content_hash = store
-        .hash_entry(ResourceKind::File, old_path)
-        .and_then(|entry| entry.content_hash().ok().flatten());
+    let content_hash = stored_content_hash(store, ResourceKind::File, old_path)?;
     let request = FileRenameRequest {
         vault: vault_name.to_string(),
         path: new_path.to_string(),
@@ -193,8 +188,7 @@ async fn send_file_rename(
     };
 
     ws.send_json(Action::FileRename, &request).await?;
-    move_hash_entry(ResourceKind::File, old_path, new_path, content_hash, store);
-    store.save()?;
+    move_hash_entry(ResourceKind::File, old_path, new_path, content_hash, store)?;
     debug!(old_path = %old_path, new_path = %new_path, "sent file rename from watch event");
     Ok(())
 }
@@ -215,12 +209,11 @@ async fn send_folder_rename(
     };
 
     ws.send_json(Action::FolderRename, &request).await?;
-    store.rename_hash_tree(old_path, new_path);
+    store.rename_hash_tree(old_path, new_path)?;
     store.push_pending_rename(
         ResourceKind::Folder,
         PendingRename::new(old_path.clone(), new_path.clone(), None),
-    );
-    store.save()?;
+    )?;
     debug!(old_path = %old_path, new_path = %new_path, "sent folder rename from watch event");
     Ok(())
 }
@@ -245,15 +238,14 @@ async fn send_note_modify(
     )?;
 
     ws.send_json(Action::NoteModify, &request).await?;
-    store.set_pending_modify(ResourceKind::Note, path, &content_hash);
+    store.set_pending_modify(ResourceKind::Note, path, &content_hash)?;
     store.set_content_hash(
         ResourceKind::Note,
         path,
         Some(content_hash),
         metadata.mtime,
         metadata.size,
-    );
-    store.save()?;
+    )?;
     debug!(path = %path, "sent note modify from watch event");
     Ok(())
 }
@@ -278,15 +270,14 @@ async fn send_setting_modify(
     )?;
 
     ws.send_json(Action::SettingModify, &request).await?;
-    store.set_pending_modify(ResourceKind::Setting, path, &content_hash);
+    store.set_pending_modify(ResourceKind::Setting, path, &content_hash)?;
     store.set_content_hash(
         ResourceKind::Setting,
         path,
         Some(content_hash),
         metadata.mtime,
         metadata.size,
-    );
-    store.save()?;
+    )?;
     debug!(path = %path, "sent setting modify from watch event");
     Ok(())
 }
@@ -318,8 +309,7 @@ async fn send_file_upload_check(
         Some(content_hash),
         metadata.mtime,
         metadata.size,
-    );
-    store.save()?;
+    )?;
     debug!(path = %path, "sent file upload check from watch event");
     Ok(())
 }
@@ -344,8 +334,7 @@ async fn send_folder_modify(
         None,
         modified_millis(metadata),
         0,
-    );
-    store.save()?;
+    )?;
     debug!(path = %path, "sent folder modify from watch event");
     Ok(())
 }
@@ -356,41 +345,40 @@ async fn send_delete_by_known_kind(
     store: &mut LocalStore,
     path: &VaultPath,
 ) -> Result<()> {
-    if store.hash_entry(ResourceKind::Note, path).is_some() {
+    if store.hash_entry(ResourceKind::Note, path)?.is_some() {
         let request = NoteDeleteRequest {
             vault: vault_name.to_string(),
             path: path.to_string(),
             path_hash: path_hash(path.as_str())?.to_string(),
         };
         ws.send_json(Action::NoteDelete, &request).await?;
-        store.insert_pending_delete(ResourceKind::Note, path);
-    } else if store.hash_entry(ResourceKind::File, path).is_some() {
+        store.insert_pending_delete(ResourceKind::Note, path)?;
+    } else if store.hash_entry(ResourceKind::File, path)?.is_some() {
         let request = FileDeleteRequest {
             vault: vault_name.to_string(),
             path: path.to_string(),
             path_hash: path_hash(path.as_str())?.to_string(),
         };
         ws.send_json(Action::FileDelete, &request).await?;
-        store.insert_pending_delete(ResourceKind::File, path);
-    } else if store.hash_entry(ResourceKind::Setting, path).is_some() {
+        store.insert_pending_delete(ResourceKind::File, path)?;
+    } else if store.hash_entry(ResourceKind::Setting, path)?.is_some() {
         let request = SettingDeleteRequest {
             vault: vault_name.to_string(),
             path: path.to_string(),
             path_hash: path_hash(path.as_str())?.to_string(),
         };
         ws.send_json(Action::SettingDelete, &request).await?;
-        store.insert_pending_delete(ResourceKind::Setting, path);
-    } else if store.hash_entry(ResourceKind::Folder, path).is_some() {
+        store.insert_pending_delete(ResourceKind::Setting, path)?;
+    } else if store.hash_entry(ResourceKind::Folder, path)?.is_some() {
         let request = FolderDeleteRequest {
             vault: vault_name.to_string(),
             path: path.to_string(),
             path_hash: path_hash(path.as_str())?.to_string(),
         };
         ws.send_json(Action::FolderDelete, &request).await?;
-        store.insert_pending_delete(ResourceKind::Folder, path);
+        store.insert_pending_delete(ResourceKind::Folder, path)?;
     }
 
-    store.save()?;
     debug!(path = %path, "sent delete from watch event");
     Ok(())
 }
@@ -399,17 +387,18 @@ fn move_hash_entry(
     kind: ResourceKind,
     old_path: &VaultPath,
     new_path: &VaultPath,
-    content_hash: Option<crate::core::ContentHash>,
+    content_hash: Option<ContentHash>,
     store: &mut LocalStore,
-) {
-    let entry = store.remove_hash_entry(kind, old_path);
+) -> Result<()> {
+    let entry = store.remove_hash_entry(kind, old_path)?;
     if let Some(entry) = entry {
-        store.set_hash_entry(kind, new_path, entry);
+        store.set_hash_entry(kind, new_path, entry)?;
     }
     store.push_pending_rename(
         kind,
         PendingRename::new(old_path.clone(), new_path.clone(), content_hash),
-    );
+    )?;
+    Ok(())
 }
 
 fn can_rename_note(
@@ -422,10 +411,7 @@ fn can_rename_note(
         return Ok(false);
     }
 
-    let Some(old_hash) = store
-        .hash_entry(ResourceKind::Note, old_path)
-        .and_then(|entry| entry.content_hash().ok().flatten())
-    else {
+    let Some(old_hash) = stored_content_hash(store, ResourceKind::Note, old_path)? else {
         return Ok(true);
     };
 
@@ -443,10 +429,7 @@ fn can_rename_file(
         return Ok(false);
     }
 
-    let Some(old_hash) = store
-        .hash_entry(ResourceKind::File, old_path)
-        .and_then(|entry| entry.content_hash().ok().flatten())
-    else {
+    let Some(old_hash) = stored_content_hash(store, ResourceKind::File, old_path)? else {
         return Ok(true);
     };
 
@@ -467,7 +450,7 @@ fn is_current_path_unchanged(
     metadata: &std::fs::Metadata,
 ) -> Result<bool> {
     if metadata.file_type().is_dir() {
-        return Ok(store.hash_entry(ResourceKind::Folder, path).is_some());
+        return Ok(store.hash_entry(ResourceKind::Folder, path)?.is_some());
     }
 
     if scan_options.is_setting_path(path) {
@@ -487,7 +470,7 @@ fn text_file_unchanged(
     store: &LocalStore,
     path: &VaultPath,
 ) -> Result<bool> {
-    let Some(entry) = store.hash_entry(kind, path) else {
+    let Some(entry) = store.hash_entry(kind, path)? else {
         return Ok(false);
     };
     let content = vault.read_text(path)?;
@@ -495,7 +478,7 @@ fn text_file_unchanged(
 }
 
 fn binary_file_unchanged(vault: &VaultFs, store: &LocalStore, path: &VaultPath) -> Result<bool> {
-    let Some(entry) = store.hash_entry(ResourceKind::File, path) else {
+    let Some(entry) = store.hash_entry(ResourceKind::File, path)? else {
         return Ok(false);
     };
     let bytes = vault.read_bytes(path)?;
@@ -505,15 +488,29 @@ fn binary_file_unchanged(vault: &VaultFs, store: &LocalStore, path: &VaultPath) 
     )
 }
 
-fn is_deleted_path_unchanged(store: &LocalStore, path: &VaultPath) -> bool {
-    [
+fn is_deleted_path_unchanged(store: &LocalStore, path: &VaultPath) -> Result<bool> {
+    for kind in [
         ResourceKind::Note,
         ResourceKind::File,
         ResourceKind::Folder,
         ResourceKind::Setting,
-    ]
-    .into_iter()
-    .all(|kind| store.hash_entry(kind, path).is_none())
+    ] {
+        if store.hash_entry(kind, path)?.is_some() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn stored_content_hash(
+    store: &LocalStore,
+    kind: ResourceKind,
+    path: &VaultPath,
+) -> Result<Option<ContentHash>> {
+    let Some(entry) = store.hash_entry(kind, path)? else {
+        return Ok(None);
+    };
+    Ok(entry.content_hash()?)
 }
 
 fn is_note_path(path: &VaultPath) -> bool {

@@ -1,39 +1,8 @@
-use std::collections::{BTreeMap, BTreeSet};
-
 use crate::core::{ContentHash, VaultPath};
-use serde::{Deserialize, Serialize};
 
 use crate::store::Result;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PendingState {
-    #[serde(default)]
-    pub note_modifies: BTreeMap<String, String>,
-    #[serde(default)]
-    pub file_uploads: BTreeMap<String, String>,
-    #[serde(default)]
-    pub file_upload_checkpoints: BTreeMap<String, UploadCheckpoint>,
-    #[serde(default)]
-    pub setting_modifies: BTreeMap<String, String>,
-    #[serde(default)]
-    pub note_deletes: BTreeSet<String>,
-    #[serde(default)]
-    pub file_deletes: BTreeSet<String>,
-    #[serde(default)]
-    pub folder_deletes: BTreeSet<String>,
-    #[serde(default)]
-    pub setting_deletes: BTreeSet<String>,
-    #[serde(default)]
-    pub note_renames: Vec<PendingRename>,
-    #[serde(default)]
-    pub file_renames: Vec<PendingRename>,
-    #[serde(default)]
-    pub folder_renames: Vec<PendingRename>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UploadCheckpoint {
     pub session_id: String,
     pub content_hash: String,
@@ -58,12 +27,10 @@ impl UploadCheckpoint {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PendingRename {
     pub old_path: String,
     pub new_path: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub content_hash: Option<String>,
 }
 

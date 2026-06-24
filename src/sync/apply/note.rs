@@ -89,8 +89,8 @@ pub(crate) fn modify_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<Ev
     let message: NoteModifyAckMessage = frame.decode_response_data()?;
     let path = VaultPath::new(&message.path)?;
     let last_time = RemoteMillis::new(message.last_time)?;
-    store.remove_pending_modify(ResourceKind::Note, &path);
-    store.set_sync_time(ResourceKind::Note, last_time);
+    store.remove_pending_modify(ResourceKind::Note, &path)?;
+    store.set_sync_time(ResourceKind::Note, last_time)?;
     Ok(EventOutcome::Ack {
         kind: ResourceKind::Note,
         path,
@@ -102,7 +102,7 @@ pub(crate) fn rename_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<Ev
     let path = VaultPath::new(&message.path)?;
     let last_time = RemoteMillis::new(message.last_time)?;
     local::commit_pending_rename(ResourceKind::Note, &path, store)?;
-    store.set_sync_time(ResourceKind::Note, last_time);
+    store.set_sync_time(ResourceKind::Note, last_time)?;
     Ok(EventOutcome::Ack {
         kind: ResourceKind::Note,
         path,

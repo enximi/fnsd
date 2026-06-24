@@ -50,7 +50,7 @@ pub(crate) fn apply_rename(
         vault,
         store,
     )?;
-    store.set_sync_time(ResourceKind::File, rename.last_time);
+    store.set_sync_time(ResourceKind::File, rename.last_time)?;
     Ok(EventOutcome::RemoteRename {
         kind: ResourceKind::File,
         old_path: rename.old_path,
@@ -105,9 +105,9 @@ pub(crate) fn upload_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<Ev
     let message: FileUploadAckMessage = frame.decode_response_data()?;
     let path = VaultPath::new(&message.path)?;
     let last_time = RemoteMillis::new(message.last_time)?;
-    store.remove_pending_modify(ResourceKind::File, &path);
-    store.remove_file_upload_checkpoint(&path);
-    store.set_sync_time(ResourceKind::File, last_time);
+    store.remove_pending_modify(ResourceKind::File, &path)?;
+    store.remove_file_upload_checkpoint(&path)?;
+    store.set_sync_time(ResourceKind::File, last_time)?;
     Ok(EventOutcome::Ack {
         kind: ResourceKind::File,
         path,
@@ -119,7 +119,7 @@ pub(crate) fn rename_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<Ev
     let path = VaultPath::new(&message.path)?;
     let last_time = RemoteMillis::new(message.last_time)?;
     local::commit_pending_rename(ResourceKind::File, &path, store)?;
-    store.set_sync_time(ResourceKind::File, last_time);
+    store.set_sync_time(ResourceKind::File, last_time)?;
     Ok(EventOutcome::Ack {
         kind: ResourceKind::File,
         path,

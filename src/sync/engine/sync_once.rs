@@ -51,7 +51,6 @@ impl SyncEngine {
         self.send_client_info(&mut ws, &vault, &mut store).await?;
 
         let summary = self.sync_authenticated(&mut ws, &vault, &mut store).await?;
-        store.save()?;
         Ok(summary)
     }
 
@@ -84,7 +83,7 @@ impl SyncEngine {
             &batches.files,
             &batches.folders,
             &batches.settings,
-        );
+        )?;
         let events = self
             .drain_sync_events(ws, &vault_name, vault, store)
             .await?;

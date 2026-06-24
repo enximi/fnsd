@@ -24,8 +24,8 @@ pub(crate) fn apply_remote_text(
         Some(text.content_hash),
         text.mtime,
         text.content.len() as u64,
-    );
-    store.set_sync_time(kind, text.last_time);
+    )?;
+    store.set_sync_time(kind, text.last_time)?;
     Ok(EventOutcome::RemoteWrite {
         kind,
         path: text.path,
@@ -40,8 +40,8 @@ pub(crate) fn apply_file_delete(
     store: &mut LocalStore,
 ) -> Result<EventOutcome> {
     delete_file_if_exists(vault, &resource.path)?;
-    store.remove_hash_entry(kind, &resource.path);
-    store.set_sync_time(kind, last_time);
+    store.remove_hash_entry(kind, &resource.path)?;
+    store.set_sync_time(kind, last_time)?;
     Ok(EventOutcome::RemoteDelete {
         kind,
         path: resource.path,
@@ -61,8 +61,8 @@ pub(crate) fn apply_text_rename(
         Some(rename.content_hash),
         rename.mtime,
         0,
-    );
-    store.set_sync_time(kind, rename.last_time);
+    )?;
+    store.set_sync_time(kind, rename.last_time)?;
     Ok(EventOutcome::RemoteRename {
         kind,
         old_path: rename.old_path,
@@ -78,17 +78,17 @@ pub(crate) fn apply_mtime_update(
 ) -> Result<EventOutcome> {
     vault.set_mtime(&update.path, update.mtime)?;
 
-    if let Some(entry) = store.hash_entry(kind, &update.path).cloned() {
+    if let Some(entry) = store.hash_entry(kind, &update.path)? {
         store.set_content_hash(
             kind,
             &update.path,
             entry.content_hash()?,
             update.mtime,
             entry.size,
-        );
+        )?;
     }
 
-    store.set_sync_time(kind, update.last_time);
+    store.set_sync_time(kind, update.last_time)?;
     Ok(EventOutcome::RemoteMtimeUpdate {
         kind,
         path: update.path,
@@ -104,8 +104,8 @@ pub(crate) fn rename_path(
 ) -> Result<()> {
     vault.rename(old_path, new_path)?;
 
-    if let Some(entry) = store.remove_hash_entry(kind, old_path) {
-        store.set_hash_entry(kind, new_path, entry);
+    if let Some(entry) = store.remove_hash_entry(kind, old_path)? {
+        store.set_hash_entry(kind, new_path, entry)?;
     }
 
     Ok(())
@@ -118,7 +118,7 @@ pub(crate) fn sync_end(
     store: &mut LocalStore,
 ) -> Result<EventOutcome> {
     let last_time = RemoteMillis::new(last_time)?;
-    store.set_sync_time(kind, last_time);
+    store.set_sync_time(kind, last_time)?;
     Ok(EventOutcome::SyncEnd {
         kind,
         last_time,
@@ -134,7 +134,7 @@ pub(crate) fn ack(
 ) -> Result<EventOutcome> {
     let path = VaultPath::new(path)?;
     let last_time = RemoteMillis::new(last_time)?;
-    store.set_sync_time(kind, last_time);
+    store.set_sync_time(kind, last_time)?;
     Ok(EventOutcome::Ack { kind, path })
 }
 
@@ -146,9 +146,9 @@ pub(crate) fn delete_ack(
 ) -> Result<EventOutcome> {
     let path = VaultPath::new(path)?;
     let last_time = RemoteMillis::new(last_time)?;
-    store.remove_pending_delete(kind, &path);
-    store.remove_hash_entry(kind, &path);
-    store.set_sync_time(kind, last_time);
+    store.remove_pending_delete(kind, &path)?;
+    store.remove_hash_entry(kind, &path)?;
+    store.set_sync_time(kind, last_time)?;
     Ok(EventOutcome::Ack { kind, path })
 }
 
@@ -157,7 +157,7 @@ pub(crate) fn commit_pending_rename(
     ack_path: &VaultPath,
     store: &mut LocalStore,
 ) -> Result<()> {
-    let Some(rename) = store.pop_pending_rename(kind) else {
+    let Some(rename) = store.pop_pending_rename(kind)? else {
         return Ok(());
     };
 
@@ -169,8 +169,8 @@ pub(crate) fn commit_pending_rename(
         return Ok(());
     }
 
-    if let Some(entry) = store.remove_hash_entry(kind, &old_path) {
-        store.set_hash_entry(kind, &new_path, entry);
+    if let Some(entry) = store.remove_hash_entry(kind, &old_path)? {
+        store.set_hash_entry(kind, &new_path, entry)?;
     } else if let Some(content_hash) = content_hash {
         store.set_content_hash(
             kind,
@@ -178,7 +178,7 @@ pub(crate) fn commit_pending_rename(
             Some(content_hash),
             RemoteMillis::new(0)?,
             0,
-        );
+        )?;
     }
 
     Ok(())

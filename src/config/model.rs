@@ -176,7 +176,7 @@ pub struct StoreConfig {
 impl Default for StoreConfig {
     fn default() -> Self {
         Self {
-            path: PathBuf::from(".fns/state.json"),
+            path: PathBuf::from(".fnsd/state.sqlite"),
         }
     }
 }

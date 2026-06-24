@@ -148,10 +148,16 @@ fn filter_folder_resources(
         return Ok(items);
     }
 
-    Ok(items
+    items
         .into_iter()
-        .filter(|item| store.hash_entry(ResourceKind::Folder, &item.path).is_none())
-        .collect())
+        .filter_map(
+            |item| match store.hash_entry(ResourceKind::Folder, &item.path) {
+                Ok(None) => Some(Ok(item)),
+                Ok(Some(_)) => None,
+                Err(err) => Some(Err(err.into())),
+            },
+        )
+        .collect()
 }
 
 fn is_unchanged(
@@ -163,7 +169,7 @@ fn is_unchanged(
     last_time: RemoteMillis,
     store: &LocalStore,
 ) -> Result<bool> {
-    if store.has_pending_modify(kind, path) {
+    if store.has_pending_modify(kind, path)? {
         return Ok(false);
     }
 
@@ -171,7 +177,7 @@ fn is_unchanged(
         return Ok(false);
     }
 
-    let Some(entry) = store.hash_entry(kind, path) else {
+    let Some(entry) = store.hash_entry(kind, path)? else {
         return Ok(false);
     };
 

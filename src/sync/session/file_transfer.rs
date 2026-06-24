@@ -53,8 +53,7 @@ impl ActiveDownloads {
                 Some(file.content_hash),
                 file.mtime,
                 file.size,
-            );
-            store.save()?;
+            )?;
         }
 
         Ok(())
@@ -79,14 +78,13 @@ pub(crate) async fn send_file_upload(
         }
     }
 
-    store.set_pending_modify(ResourceKind::File, &plan.path, &plan.content_hash);
+    store.set_pending_modify(ResourceKind::File, &plan.path, &plan.content_hash)?;
     store.set_content_hash(
         ResourceKind::File,
         &plan.path,
         Some(plan.content_hash),
         plan.mtime,
         plan.size,
-    );
-    store.save()?;
+    )?;
     Ok(())
 }

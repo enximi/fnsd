@@ -3,7 +3,6 @@
 //! 该模块把配置、本地元数据、vault 文件系统访问、协议规划和 WebSocket 传输串起来。
 //! 策略应在这里保持显式，底层工作交给更窄的模块。
 
-mod checkpoint;
 mod error;
 mod event_loop;
 mod outgoing;

@@ -1,260 +1,152 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::core::{ContentHash, RemoteMillis, ResourceKind, VaultPath};
+use crate::sync::transfer::DownloadSession;
+use rusqlite::Connection;
 
-use crate::store::{
-    HashEntry, LocalStoreState, PendingRename, Result, UploadCheckpoint, error::io,
-};
+use crate::store::{HashEntry, PendingRename, Result, UploadCheckpoint, database, error::io};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct LocalStore {
-    path: PathBuf,
-    state: LocalStoreState,
+    conn: Connection,
 }
 
 impl LocalStore {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref().to_path_buf();
-
-        if !path.exists() {
-            return Ok(Self {
-                path,
-                state: LocalStoreState::default(),
-            });
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|err| io(parent, err))?;
         }
 
-        let content = std::fs::read_to_string(&path).map_err(|err| io(&path, err))?;
-        let state = serde_json::from_str(&content)?;
+        let conn = Connection::open(&path)?;
+        database::initialize_schema(&conn)?;
 
-        Ok(Self { path, state })
-    }
-
-    pub fn path(&self) -> &Path {
-        &self.path
+        Ok(Self { conn })
     }
 
     pub fn sync_time(&self, kind: ResourceKind) -> Result<RemoteMillis> {
-        self.state.sync_times.get(kind)
+        database::sync_time(&self.conn, kind)
     }
 
-    pub fn set_sync_time(&mut self, kind: ResourceKind, value: RemoteMillis) {
-        self.state.sync_times.set(kind, value);
+    pub fn set_sync_time(&self, kind: ResourceKind, value: RemoteMillis) -> Result<()> {
+        database::set_sync_time(&self.conn, kind, value)
     }
 
-    pub fn hash_entry(&self, kind: ResourceKind, path: &VaultPath) -> Option<&HashEntry> {
-        self.state.hashes.by_kind(kind).get(path.as_str())
+    pub fn hash_entry(&self, kind: ResourceKind, path: &VaultPath) -> Result<Option<HashEntry>> {
+        database::hash_entry(&self.conn, kind, path)
     }
 
-    pub fn set_hash_entry(&mut self, kind: ResourceKind, path: &VaultPath, entry: HashEntry) {
-        self.state
-            .hashes
-            .by_kind_mut(kind)
-            .insert(path.to_string(), entry);
+    pub fn set_hash_entry(
+        &self,
+        kind: ResourceKind,
+        path: &VaultPath,
+        entry: HashEntry,
+    ) -> Result<()> {
+        database::set_hash_entry(&self.conn, kind, path, &entry)
     }
 
     pub fn set_content_hash(
-        &mut self,
+        &self,
         kind: ResourceKind,
         path: &VaultPath,
         content_hash: Option<ContentHash>,
         mtime: RemoteMillis,
         size: u64,
-    ) {
-        self.set_hash_entry(kind, path, HashEntry::new(content_hash, mtime, size));
+    ) -> Result<()> {
+        self.set_hash_entry(kind, path, HashEntry::new(content_hash, mtime, size))
     }
 
-    pub fn remove_hash_entry(&mut self, kind: ResourceKind, path: &VaultPath) -> Option<HashEntry> {
-        self.state.hashes.by_kind_mut(kind).remove(path.as_str())
+    pub fn remove_hash_entry(
+        &self,
+        kind: ResourceKind,
+        path: &VaultPath,
+    ) -> Result<Option<HashEntry>> {
+        database::remove_hash_entry(&self.conn, kind, path)
     }
 
-    pub fn rename_hash_tree(&mut self, old_path: &VaultPath, new_path: &VaultPath) {
-        for kind in [
-            ResourceKind::Note,
-            ResourceKind::File,
-            ResourceKind::Folder,
-            ResourceKind::Setting,
-        ] {
-            rename_hash_tree_for_kind(
-                self.state.hashes.by_kind_mut(kind),
-                old_path.as_str(),
-                new_path.as_str(),
-            );
-        }
+    pub fn rename_hash_tree(&mut self, old_path: &VaultPath, new_path: &VaultPath) -> Result<()> {
+        database::rename_hash_tree(&mut self.conn, old_path, new_path)
     }
 
     pub fn all_hash_paths(&self, kind: ResourceKind) -> Result<Vec<VaultPath>> {
-        self.state
-            .hashes
-            .by_kind(kind)
-            .keys()
-            .map(VaultPath::new)
-            .collect::<std::result::Result<Vec<_>, _>>()
-            .map_err(Into::into)
+        database::all_hash_paths(&self.conn, kind)
     }
 
     pub fn set_pending_modify(
-        &mut self,
+        &self,
         kind: ResourceKind,
         path: &VaultPath,
         content_hash: &ContentHash,
-    ) {
-        match kind {
-            ResourceKind::Note => {
-                self.state
-                    .pending
-                    .note_modifies
-                    .insert(path.to_string(), content_hash.to_string());
-            }
-            ResourceKind::File => {
-                self.state
-                    .pending
-                    .file_uploads
-                    .insert(path.to_string(), content_hash.to_string());
-            }
-            ResourceKind::Setting => {
-                self.state
-                    .pending
-                    .setting_modifies
-                    .insert(path.to_string(), content_hash.to_string());
-            }
-            ResourceKind::Folder => {}
-        }
+    ) -> Result<()> {
+        database::set_pending_modify(&self.conn, kind, path, content_hash)
     }
 
     pub fn remove_pending_modify(
-        &mut self,
+        &self,
         kind: ResourceKind,
         path: &VaultPath,
-    ) -> Option<String> {
-        match kind {
-            ResourceKind::Note => self.state.pending.note_modifies.remove(path.as_str()),
-            ResourceKind::File => self.state.pending.file_uploads.remove(path.as_str()),
-            ResourceKind::Setting => self.state.pending.setting_modifies.remove(path.as_str()),
-            ResourceKind::Folder => None,
-        }
+    ) -> Result<Option<String>> {
+        database::remove_pending_modify(&self.conn, kind, path)
     }
 
-    pub fn has_pending_modify(&self, kind: ResourceKind, path: &VaultPath) -> bool {
-        match kind {
-            ResourceKind::Note => self.state.pending.note_modifies.contains_key(path.as_str()),
-            ResourceKind::File => self.state.pending.file_uploads.contains_key(path.as_str()),
-            ResourceKind::Setting => self
-                .state
-                .pending
-                .setting_modifies
-                .contains_key(path.as_str()),
-            ResourceKind::Folder => false,
-        }
+    pub fn has_pending_modify(&self, kind: ResourceKind, path: &VaultPath) -> Result<bool> {
+        database::has_pending_modify(&self.conn, kind, path)
     }
 
-    pub fn file_upload_checkpoint(&self, path: &VaultPath) -> Option<&UploadCheckpoint> {
-        self.state
-            .pending
-            .file_upload_checkpoints
-            .get(path.as_str())
+    pub fn file_upload_checkpoint(&self, path: &VaultPath) -> Result<Option<UploadCheckpoint>> {
+        database::file_upload_checkpoint(&self.conn, path)
     }
 
-    pub fn set_file_upload_checkpoint(&mut self, path: &VaultPath, checkpoint: UploadCheckpoint) {
-        self.state
-            .pending
-            .file_upload_checkpoints
-            .insert(path.to_string(), checkpoint);
+    pub fn set_file_upload_checkpoint(
+        &self,
+        path: &VaultPath,
+        checkpoint: UploadCheckpoint,
+    ) -> Result<()> {
+        database::set_file_upload_checkpoint(&self.conn, path, &checkpoint)
     }
 
-    pub fn remove_file_upload_checkpoint(&mut self, path: &VaultPath) -> Option<UploadCheckpoint> {
-        self.state
-            .pending
-            .file_upload_checkpoints
-            .remove(path.as_str())
+    pub fn remove_file_upload_checkpoint(
+        &self,
+        path: &VaultPath,
+    ) -> Result<Option<UploadCheckpoint>> {
+        database::remove_file_upload_checkpoint(&self.conn, path)
     }
 
-    pub fn insert_pending_delete(&mut self, kind: ResourceKind, path: &VaultPath) {
-        match kind {
-            ResourceKind::Note => {
-                self.state.pending.note_deletes.insert(path.to_string());
-            }
-            ResourceKind::File => {
-                self.state.pending.file_deletes.insert(path.to_string());
-            }
-            ResourceKind::Folder => {
-                self.state.pending.folder_deletes.insert(path.to_string());
-            }
-            ResourceKind::Setting => {
-                self.state.pending.setting_deletes.insert(path.to_string());
-            }
-        }
+    pub fn insert_pending_delete(&self, kind: ResourceKind, path: &VaultPath) -> Result<()> {
+        database::insert_pending_delete(&self.conn, kind, path)
     }
 
-    pub fn remove_pending_delete(&mut self, kind: ResourceKind, path: &VaultPath) -> bool {
-        match kind {
-            ResourceKind::Note => self.state.pending.note_deletes.remove(path.as_str()),
-            ResourceKind::File => self.state.pending.file_deletes.remove(path.as_str()),
-            ResourceKind::Folder => self.state.pending.folder_deletes.remove(path.as_str()),
-            ResourceKind::Setting => self.state.pending.setting_deletes.remove(path.as_str()),
-        }
+    pub fn remove_pending_delete(&self, kind: ResourceKind, path: &VaultPath) -> Result<bool> {
+        database::remove_pending_delete(&self.conn, kind, path)
     }
 
-    pub fn push_pending_rename(&mut self, kind: ResourceKind, rename: PendingRename) {
-        match kind {
-            ResourceKind::Note => self.state.pending.note_renames.push(rename),
-            ResourceKind::File => self.state.pending.file_renames.push(rename),
-            ResourceKind::Folder => self.state.pending.folder_renames.push(rename),
-            ResourceKind::Setting => {}
-        }
+    pub fn push_pending_rename(&self, kind: ResourceKind, rename: PendingRename) -> Result<()> {
+        database::push_pending_rename(&self.conn, kind, &rename)
     }
 
-    pub fn pop_pending_rename(&mut self, kind: ResourceKind) -> Option<PendingRename> {
-        match kind {
-            ResourceKind::Note => pop_front(&mut self.state.pending.note_renames),
-            ResourceKind::File => pop_front(&mut self.state.pending.file_renames),
-            ResourceKind::Folder => pop_front(&mut self.state.pending.folder_renames),
-            ResourceKind::Setting => None,
-        }
+    pub fn pop_pending_rename(&self, kind: ResourceKind) -> Result<Option<PendingRename>> {
+        database::pop_pending_rename(&self.conn, kind)
     }
 
-    pub fn save(&self) -> Result<()> {
-        if let Some(parent) = self.path.parent() {
-            std::fs::create_dir_all(parent).map_err(|err| io(parent, err))?;
-        }
-
-        let content = serde_json::to_string_pretty(&self.state)?;
-        std::fs::write(&self.path, content).map_err(|err| io(&self.path, err))?;
-        Ok(())
+    pub fn restore_download_chunks(&self, session: &mut DownloadSession) -> Result<()> {
+        database::restore_download_chunks(&self.conn, session)
     }
-}
 
-fn pop_front<T>(items: &mut Vec<T>) -> Option<T> {
-    if items.is_empty() {
-        None
-    } else {
-        Some(items.remove(0))
+    pub fn save_download_chunk(
+        &self,
+        session: &DownloadSession,
+        chunk_index: u32,
+        chunk_data: &[u8],
+    ) -> Result<()> {
+        database::save_download_chunk(&self.conn, session, chunk_index, chunk_data)
     }
-}
 
-fn rename_hash_tree_for_kind(
-    entries: &mut std::collections::BTreeMap<String, HashEntry>,
-    old_path: &str,
-    new_path: &str,
-) {
-    let old_prefix = format!("{old_path}/");
-    let new_prefix = format!("{new_path}/");
-    let moved = entries
-        .iter()
-        .filter_map(|(path, entry)| {
-            let target = if path == old_path {
-                Some(new_path.to_string())
-            } else {
-                path.strip_prefix(&old_prefix)
-                    .map(|suffix| format!("{new_prefix}{suffix}"))
-            }?;
-            Some((path.clone(), target, entry.clone()))
-        })
-        .collect::<Vec<_>>();
-
-    for (old_path, _, _) in &moved {
-        entries.remove(old_path);
-    }
-    for (_, new_path, entry) in moved {
-        entries.insert(new_path, entry);
+    pub fn clear_download_chunks(
+        &self,
+        content_hash: &ContentHash,
+        size: u64,
+        chunk_size: usize,
+    ) -> Result<()> {
+        database::clear_download_chunks(&self.conn, content_hash, size, chunk_size)
     }
 }

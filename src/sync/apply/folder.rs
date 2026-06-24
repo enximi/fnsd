@@ -22,8 +22,8 @@ pub(crate) fn apply_modify(
         unreachable!("folder modify planner must produce create operation");
     };
     vault.create_dir_all(&folder.path)?;
-    store.set_content_hash(ResourceKind::Folder, &folder.path, None, folder.mtime, 0);
-    store.set_sync_time(ResourceKind::Folder, folder.last_time);
+    store.set_content_hash(ResourceKind::Folder, &folder.path, None, folder.mtime, 0)?;
+    store.set_sync_time(ResourceKind::Folder, folder.last_time)?;
     Ok(EventOutcome::RemoteWrite {
         kind: ResourceKind::Folder,
         path: folder.path,
@@ -41,8 +41,8 @@ pub(crate) fn apply_delete(
         unreachable!("folder delete planner must produce delete operation");
     };
     local::delete_dir_if_exists(vault, &resource.path)?;
-    store.remove_hash_entry(ResourceKind::Folder, &resource.path);
-    store.set_sync_time(ResourceKind::Folder, last_time);
+    store.remove_hash_entry(ResourceKind::Folder, &resource.path)?;
+    store.set_sync_time(ResourceKind::Folder, last_time)?;
     Ok(EventOutcome::RemoteDelete {
         kind: ResourceKind::Folder,
         path: resource.path,
@@ -65,8 +65,8 @@ pub(crate) fn apply_rename(
         vault,
         store,
     )?;
-    store.rename_hash_tree(&rename.old_path, &rename.path);
-    store.set_sync_time(ResourceKind::Folder, rename.last_time);
+    store.rename_hash_tree(&rename.old_path, &rename.path)?;
+    store.set_sync_time(ResourceKind::Folder, rename.last_time)?;
     Ok(EventOutcome::RemoteRename {
         kind: ResourceKind::Folder,
         old_path: rename.old_path,
@@ -99,7 +99,7 @@ pub(crate) fn rename_ack(frame: &TextFrame, store: &mut LocalStore) -> Result<Ev
     let path = VaultPath::new(&message.path)?;
     let last_time = RemoteMillis::new(message.last_time)?;
     local::commit_pending_rename(ResourceKind::Folder, &path, store)?;
-    store.set_sync_time(ResourceKind::Folder, last_time);
+    store.set_sync_time(ResourceKind::Folder, last_time)?;
     Ok(EventOutcome::Ack {
         kind: ResourceKind::Folder,
         path,

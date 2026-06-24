@@ -20,11 +20,6 @@ pub enum SyncEngineError {
     WsClient(#[from] crate::ws::WsClientError),
     #[error("blocking task failed: {0}")]
     BlockingTask(String),
-    #[error("checkpoint io failed for {path}: {source}")]
-    CheckpointIo {
-        path: std::path::PathBuf,
-        source: std::io::Error,
-    },
     #[error("max concurrent transfers must be greater than 0 when transfer concurrency is enabled")]
     InvalidTransferConcurrency,
     #[error("transfer timed out: {0}")]

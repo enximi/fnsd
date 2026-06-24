@@ -7,7 +7,11 @@ pub enum LocalStoreError {
     #[error(transparent)]
     Core(#[from] crate::core::CoreError),
     #[error(transparent)]
-    Json(#[from] serde_json::Error),
+    FileTransfer(#[from] crate::sync::transfer::FileTransferError),
+    #[error(transparent)]
+    Sqlite(#[from] rusqlite::Error),
+    #[error("store value {name} is too large: {value}")]
+    NumberTooLarge { name: &'static str, value: u64 },
     #[error("store io error at {path}: {source}")]
     Io {
         path: PathBuf,

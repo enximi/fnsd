@@ -10,7 +10,6 @@ use tracing::{debug, info, warn};
 
 use crate::sync::engine::{
     Result, SyncEngine, SyncEngineError,
-    checkpoint::DownloadCheckpointStore,
     outgoing::{send_file_upload, send_note_modify, send_setting_modify},
     transfer_queue::{QueuedTransfer, TransferKey, TransferState},
 };
@@ -26,7 +25,6 @@ impl SyncEngine {
         let mut tracker = SyncEndTracker::default();
         let mut summary = EventApplySummary::default();
         let mut transfers = TransferState::new(self.options().transfer);
-        let checkpoints = DownloadCheckpointStore::new(store.path());
         let mut pending_server_events = 0_usize;
 
         while !tracker.is_complete() || pending_server_events > 0 || transfers.has_pending_work()? {
@@ -70,7 +68,7 @@ impl SyncEngine {
                         bytes = chunk.chunk_data().len(),
                         "received file chunk"
                     );
-                    handle_file_chunk(vault, store, &mut transfers, &checkpoints, chunk)?;
+                    handle_file_chunk(vault, store, &mut transfers, chunk)?;
                     self.start_ready_transfers(ws, vault_name, vault, store, &mut transfers)
                         .await?;
                 }
@@ -163,8 +161,7 @@ impl SyncEngine {
             }
             QueuedTransfer::FileDownloadSession(download) => {
                 let mut session = DownloadSession::new(download)?;
-                let checkpoints = DownloadCheckpointStore::new(store.path());
-                checkpoints.restore(&mut session)?;
+                store.restore_download_chunks(&mut session)?;
                 debug!(
                     path = %session.path(),
                     session_id = session.session_id(),
@@ -174,7 +171,7 @@ impl SyncEngine {
                 );
 
                 if session.is_complete() {
-                    finalize_download(vault, store, &checkpoints, session)?;
+                    finalize_download(vault, store, session)?;
                     transfers.finish(key);
                 } else {
                     transfers.insert_download(session);
@@ -203,7 +200,6 @@ fn handle_file_chunk(
     vault: &VaultFs,
     store: &mut LocalStore,
     transfers: &mut TransferState,
-    checkpoints: &DownloadCheckpointStore,
     chunk: crate::protocol::FileChunkFrame,
 ) -> Result<()> {
     let session_id = chunk.session_id().to_string();
@@ -212,14 +208,16 @@ fn handle_file_chunk(
         return Ok(());
     };
 
-    checkpoints.save_chunk(session, chunk.chunk_index(), chunk.chunk_data())?;
+    let chunk_index = chunk.chunk_index();
+    let chunk_data = chunk.chunk_data().to_vec();
     session.accept_chunk(chunk)?;
+    store.save_download_chunk(session, chunk_index, &chunk_data)?;
 
     if session.is_complete() {
         let session = transfers
             .take_download(&session_id)
             .expect("download session exists after successful chunk accept");
-        finalize_download(vault, store, checkpoints, session)?;
+        finalize_download(vault, store, session)?;
         info!(session_id = %session_id, "file download completed");
         transfers.finish(TransferKey::DownloadSession(session_id));
     }
@@ -230,7 +228,6 @@ fn handle_file_chunk(
 fn finalize_download(
     vault: &VaultFs,
     store: &mut LocalStore,
-    checkpoints: &DownloadCheckpointStore,
     session: DownloadSession,
 ) -> Result<()> {
     let content_hash = session.content_hash().clone();
@@ -243,7 +240,7 @@ fn finalize_download(
         Some(file.content_hash),
         file.mtime,
         file.size,
-    );
-    checkpoints.clear_completed(&content_hash, size, chunk_size)?;
+    )?;
+    store.clear_download_chunks(&content_hash, size, chunk_size)?;
     Ok(())
 }
