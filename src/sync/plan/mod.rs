@@ -7,10 +7,6 @@ mod error;
 mod operation;
 mod request;
 
-pub use crate::core::{
-    DeletedResource, FileResource, FolderResource, NoteResource, SettingResource, SyncBatch,
-    TextResource,
-};
 pub use error::{PlanError, Result};
 pub use operation::{
     FileDownload, FileOperation, FileUpload, FolderOperation, MtimeUpdate, NoteOperation,

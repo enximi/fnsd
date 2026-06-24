@@ -1,4 +1,4 @@
-use crate::core::{ContentHash, PathHash, RemoteMillis, VaultPath};
+use crate::core::{ContentHash, DeletedResource, PathHash, RemoteMillis, VaultPath};
 use crate::protocol::{
     FileSyncDeleteMessage, FileSyncDownloadMessage, FileSyncModifyMessage, FileSyncMtimeMessage,
     FileSyncRenameMessage, FileSyncUploadMessage, FolderSyncDeleteMessage, FolderSyncModifyMessage,
@@ -7,7 +7,7 @@ use crate::protocol::{
     SettingSyncModifyMessage, SettingSyncMtimeMessage, SettingSyncNeedUploadMessage,
 };
 
-use crate::sync::plan::{DeletedResource, Result};
+use crate::sync::plan::Result;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NoteOperation {

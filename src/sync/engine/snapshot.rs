@@ -1,11 +1,11 @@
 use std::collections::BTreeSet;
 
-use crate::core::{ContentHash, RemoteMillis, ResourceKind, VaultPath};
+use crate::core::{
+    ContentHash, DeletedResource, FileResource, FolderResource, NoteResource, RemoteMillis,
+    ResourceKind, SettingResource, SyncBatch, TextResource, VaultPath,
+};
 use crate::hash::path_hash;
 use crate::store::LocalStore;
-use crate::sync::plan::{
-    DeletedResource, FileResource, FolderResource, NoteResource, SettingResource, SyncBatch,
-};
 use crate::vault::fs::VaultSnapshot;
 
 use crate::sync::engine::{MissingPathMode, Result};
@@ -248,7 +248,7 @@ trait TextResourceView {
     fn mtime(&self) -> RemoteMillis;
 }
 
-impl TextResourceView for NoteResource {
+impl TextResourceView for TextResource {
     fn path(&self) -> &VaultPath {
         &self.path
     }

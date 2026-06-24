@@ -1,6 +1,7 @@
-use crate::core::ResourceKind;
+use crate::core::{
+    FileResource, FolderResource, NoteResource, ResourceKind, SettingResource, SyncBatch,
+};
 use crate::store::LocalStore;
-use crate::sync::plan::{FileResource, FolderResource, NoteResource, SettingResource, SyncBatch};
 
 pub fn refresh_sent_hash_index(
     store: &mut LocalStore,

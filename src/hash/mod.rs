@@ -1,4 +1,4 @@
-//! 与原 FNS Obsidian 插件兼容的 hash 辅助函数。
+//! 与 FNS 服务端协议一致的 hash 辅助函数。
 //!
 //! 原插件使用 JavaScript 32 位滚动 hash。
 //! 文本 hash 按 `charCodeAt` 语义计算，因此这里对 UTF-16 code unit 做 hash，

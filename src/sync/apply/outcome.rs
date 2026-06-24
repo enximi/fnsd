@@ -1,5 +1,5 @@
-use crate::core::{RemoteMillis, ResourceKind, VaultPath};
-use crate::sync::plan::{DeletedResource, FileDownload, FileUpload, RemoteFile};
+use crate::core::{DeletedResource, RemoteMillis, ResourceKind, VaultPath};
+use crate::sync::plan::{FileDownload, FileUpload, RemoteFile};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EventApplySummary {

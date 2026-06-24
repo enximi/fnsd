@@ -1,4 +1,7 @@
-use crate::core::{ContentHash, RemoteMillis, VaultName, VaultPath};
+use crate::core::{
+    ContentHash, DeletedResource, FileResource, FolderResource, RemoteMillis, SyncBatch,
+    TextResource, VaultName, VaultPath,
+};
 use crate::protocol::{
     FileSyncCheckRequest, FileSyncDelFile, FileSyncRequest, FolderSyncCheckRequest,
     FolderSyncDelFolder, FolderSyncRequest, NoteModifyOrCreateRequest, NoteSyncCheckRequest,
@@ -6,10 +9,7 @@ use crate::protocol::{
     SettingSyncDelSetting, SettingSyncRequest,
 };
 
-use crate::sync::plan::{
-    DeletedResource, FileResource, FolderResource, Result, SyncBatch, TextResource,
-    error::PlanError,
-};
+use crate::sync::plan::{Result, error::PlanError};
 
 pub fn build_note_sync_request(
     vault: &VaultName,

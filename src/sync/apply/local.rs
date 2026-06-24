@@ -1,8 +1,8 @@
 use std::io::ErrorKind;
 
-use crate::core::{RemoteMillis, ResourceKind, VaultPath};
+use crate::core::{DeletedResource, RemoteMillis, ResourceKind, VaultPath};
 use crate::store::LocalStore;
-use crate::sync::plan::{DeletedResource, MtimeUpdate, RemoteText, RemoteTextRename};
+use crate::sync::plan::{MtimeUpdate, RemoteText, RemoteTextRename};
 use crate::vault::fs::{VaultFileTimes, VaultFs, VaultFsError};
 
 use crate::sync::apply::{EventOutcome, Result};
