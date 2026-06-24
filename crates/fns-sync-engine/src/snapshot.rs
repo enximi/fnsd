@@ -144,24 +144,14 @@ fn filter_folder_resources(
     last_time: RemoteMillis,
     store: &LocalStore,
 ) -> Result<Vec<FolderResource>> {
-    items
+    if last_time.as_i64() == 0 {
+        return Ok(items);
+    }
+
+    Ok(items
         .into_iter()
-        .filter_map(|item| {
-            match is_unchanged(
-                ResourceKind::Folder,
-                &item.path,
-                None,
-                item.mtime,
-                None,
-                last_time,
-                store,
-            ) {
-                Ok(true) => None,
-                Ok(false) => Some(Ok(item)),
-                Err(err) => Some(Err(err)),
-            }
-        })
-        .collect()
+        .filter(|item| store.hash_entry(ResourceKind::Folder, &item.path).is_none())
+        .collect())
 }
 
 fn is_unchanged(
