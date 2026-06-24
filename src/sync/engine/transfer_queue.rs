@@ -106,8 +106,7 @@ impl TransferState {
     }
 
     fn has_capacity(&self) -> bool {
-        !self.options.concurrency_enabled
-            || self.active.len() < self.options.max_concurrent_transfers
+        self.active.len() < self.options.max_concurrent_transfers
     }
 
     fn ensure_not_timed_out(&self) -> Result<()> {
@@ -143,24 +142,18 @@ impl TransferState {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TransferOptions {
-    pub concurrency_enabled: bool,
     pub max_concurrent_transfers: usize,
     pub timeout: Duration,
 }
 
 impl TransferOptions {
-    pub fn new(
-        concurrency_enabled: bool,
-        max_concurrent_transfers: usize,
-        timeout_seconds: u64,
-    ) -> Result<Self> {
-        if concurrency_enabled && max_concurrent_transfers == 0 {
+    pub fn new(max_concurrent_transfers: usize, timeout_seconds: u64) -> Result<Self> {
+        if max_concurrent_transfers == 0 {
             return Err(SyncEngineError::InvalidTransferConcurrency);
         }
 
         Ok(Self {
-            concurrency_enabled,
-            max_concurrent_transfers: max_concurrent_transfers.max(1),
+            max_concurrent_transfers,
             timeout: Duration::from_secs(timeout_seconds),
         })
     }

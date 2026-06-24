@@ -184,12 +184,10 @@ impl SyncSessionOptions {
         Self {
             debounce: Duration::from_millis(config.daemon.debounce_ms),
             transfer: TransferOptions::new(
-                config.sync.transfer_concurrency_enabled,
                 config.sync.max_concurrent_transfers,
                 config.sync.transfer_timeout_seconds,
             )
             .unwrap_or(TransferOptions {
-                concurrency_enabled: true,
                 max_concurrent_transfers: 4,
                 timeout: Duration::from_secs(60 * 60),
             }),

@@ -237,7 +237,6 @@ impl Default for ClientConfig {
 #[serde(default)]
 pub struct SyncConfig {
     pub offline_delete_sync_enabled: bool,
-    pub transfer_concurrency_enabled: bool,
     pub max_concurrent_transfers: usize,
     pub transfer_timeout_seconds: u64,
 }
@@ -246,7 +245,6 @@ impl Default for SyncConfig {
     fn default() -> Self {
         Self {
             offline_delete_sync_enabled: false,
-            transfer_concurrency_enabled: true,
             max_concurrent_transfers: 4,
             transfer_timeout_seconds: 60 * 60,
         }

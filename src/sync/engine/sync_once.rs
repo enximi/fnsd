@@ -215,7 +215,6 @@ impl Default for SyncEngineOptions {
         Self {
             missing_path_mode: MissingPathMode::Missing,
             transfer: TransferOptions {
-                concurrency_enabled: true,
                 max_concurrent_transfers: 4,
                 timeout: std::time::Duration::from_secs(60 * 60),
             },
@@ -232,7 +231,6 @@ impl SyncEngineOptions {
                 MissingPathMode::Missing
             },
             transfer: TransferOptions::new(
-                config.sync.transfer_concurrency_enabled,
                 config.sync.max_concurrent_transfers,
                 config.sync.transfer_timeout_seconds,
             )
