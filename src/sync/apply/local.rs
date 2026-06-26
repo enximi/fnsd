@@ -220,3 +220,18 @@ pub(crate) fn delete_dir_if_exists(vault: &VaultFs, path: &VaultPath) -> Result<
         Err(err) => Err(err.into()),
     }
 }
+
+pub(crate) fn delete_empty_dir_if_exists(vault: &VaultFs, path: &VaultPath) -> Result<()> {
+    match vault.delete_empty_dir(path) {
+        Ok(()) => Ok(()),
+        Err(VaultFsError::Io { source, .. })
+            if matches!(
+                source.kind(),
+                ErrorKind::NotFound | ErrorKind::DirectoryNotEmpty
+            ) =>
+        {
+            Ok(())
+        }
+        Err(err) => Err(err.into()),
+    }
+}

@@ -105,6 +105,10 @@ impl LocalStore {
         database::all_hash_paths(&self.conn, kind)
     }
 
+    pub fn hash_tree_paths(&self, kind: ResourceKind, root: &VaultPath) -> Result<Vec<VaultPath>> {
+        database::hash_tree_paths(&self.conn, kind, root)
+    }
+
     pub fn set_pending_modify(
         &self,
         kind: ResourceKind,

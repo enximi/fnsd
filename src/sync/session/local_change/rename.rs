@@ -113,6 +113,11 @@ impl LocalChangeSender<'_> {
         old_path: &VaultPath,
         new_path: &VaultPath,
     ) -> Result<()> {
+        self.send_child_renames(ResourceKind::Note, old_path, new_path)
+            .await?;
+        self.send_child_renames(ResourceKind::File, old_path, new_path)
+            .await?;
+
         let request = FolderRenameRequest {
             vault: self.vault_name.to_string(),
             path: new_path.to_string(),
@@ -128,6 +133,44 @@ impl LocalChangeSender<'_> {
             PendingRename::new(old_path.clone(), new_path.clone(), None),
         )?;
         debug!(old_path = %old_path, new_path = %new_path, "sent folder rename from watch event");
+        Ok(())
+    }
+
+    async fn send_child_renames(
+        &mut self,
+        kind: ResourceKind,
+        old_root: &VaultPath,
+        new_root: &VaultPath,
+    ) -> Result<()> {
+        let paths = self.store.hash_tree_paths(kind, old_root)?;
+        for old_path in paths {
+            let new_path = renamed_child_path(&old_path, old_root, new_root)?;
+            match kind {
+                ResourceKind::Note => {
+                    let request = NoteRenameRequest {
+                        vault: self.vault_name.to_string(),
+                        path: new_path.to_string(),
+                        path_hash: path_hash(new_path.as_str())?.to_string(),
+                        old_path: old_path.to_string(),
+                        old_path_hash: path_hash(old_path.as_str())?.to_string(),
+                    };
+                    self.ws.send_json(Action::NoteRename, &request).await?;
+                }
+                ResourceKind::File => {
+                    let request = FileRenameRequest {
+                        vault: self.vault_name.to_string(),
+                        path: new_path.to_string(),
+                        path_hash: path_hash(new_path.as_str())?.to_string(),
+                        old_path: old_path.to_string(),
+                        old_path_hash: path_hash(old_path.as_str())?.to_string(),
+                    };
+                    self.ws.send_json(Action::FileRename, &request).await?;
+                }
+                ResourceKind::Folder | ResourceKind::Setting => {}
+            }
+            debug!(?kind, old_path = %old_path, new_path = %new_path, "sent child rename from folder rename");
+        }
+
         Ok(())
     }
 
@@ -193,4 +236,21 @@ impl LocalChangeSender<'_> {
         };
         Ok(entry.content_hash()?)
     }
+}
+
+fn renamed_child_path(
+    path: &VaultPath,
+    old_root: &VaultPath,
+    new_root: &VaultPath,
+) -> Result<VaultPath> {
+    if path == old_root {
+        return Ok(new_root.clone());
+    }
+
+    let old_prefix = format!("{old_root}/");
+    let suffix = path
+        .as_str()
+        .strip_prefix(&old_prefix)
+        .expect("hash tree paths must be descendants of old root");
+    Ok(VaultPath::new(format!("{new_root}/{suffix}"))?)
 }

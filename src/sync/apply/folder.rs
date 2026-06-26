@@ -8,7 +8,7 @@ use crate::store::LocalStore;
 use crate::sync::plan::{
     FolderOperation, plan_folder_delete, plan_folder_modify, plan_folder_rename,
 };
-use crate::vault::fs::VaultFs;
+use crate::vault::fs::{VaultFs, VaultFsError};
 
 use crate::sync::apply::{EventOutcome, Result, local, pending_sync_end_events};
 
@@ -58,13 +58,7 @@ pub(crate) fn apply_rename(
     let FolderOperation::Rename(rename) = plan_folder_rename(&message)? else {
         unreachable!("folder rename planner must produce rename operation");
     };
-    local::rename_path(
-        ResourceKind::Folder,
-        &rename.old_path,
-        &rename.path,
-        vault,
-        store,
-    )?;
+    rename_folder_idempotent(vault, store, &rename.old_path, &rename.path)?;
     store.rename_hash_tree(&rename.old_path, &rename.path)?;
     store.set_sync_time(ResourceKind::Folder, rename.last_time)?;
     Ok(EventOutcome::RemoteRename {
@@ -72,6 +66,26 @@ pub(crate) fn apply_rename(
         old_path: rename.old_path,
         new_path: rename.path,
     })
+}
+
+fn rename_folder_idempotent(
+    vault: &VaultFs,
+    store: &mut LocalStore,
+    old_path: &VaultPath,
+    new_path: &VaultPath,
+) -> Result<()> {
+    match local::rename_path(ResourceKind::Folder, old_path, new_path, vault, store) {
+        Ok(()) => Ok(()),
+        Err(crate::sync::apply::SyncApplyError::VaultFs(VaultFsError::Io { source, .. }))
+            if matches!(
+                source.kind(),
+                std::io::ErrorKind::AlreadyExists | std::io::ErrorKind::NotFound
+            ) =>
+        {
+            local::delete_empty_dir_if_exists(vault, old_path)
+        }
+        Err(err) => Err(err),
+    }
 }
 
 pub(crate) fn sync_end(frame: &TextFrame, store: &mut LocalStore) -> Result<EventOutcome> {

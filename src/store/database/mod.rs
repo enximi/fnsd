@@ -7,8 +7,8 @@ mod schema;
 mod transfer;
 
 pub(crate) use hash::{
-    all_hash_paths, hash_entry, hash_entry_count, remove_hash_entry, rename_hash_tree,
-    set_hash_entry, set_sync_time, sync_time,
+    all_hash_paths, hash_entry, hash_entry_count, hash_tree_paths, remove_hash_entry,
+    rename_hash_tree, set_hash_entry, set_sync_time, sync_time,
 };
 pub(crate) use pending::{
     clear_ack_pending, file_upload_checkpoint, has_pending_modify, insert_pending_delete,

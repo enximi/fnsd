@@ -92,6 +92,11 @@ impl VaultFs {
         std::fs::remove_dir_all(&absolute).map_err(|err| io(absolute, err))
     }
 
+    pub fn delete_empty_dir(&self, path: &VaultPath) -> Result<()> {
+        let absolute = self.resolve_existing(path)?;
+        std::fs::remove_dir(&absolute).map_err(|err| io(absolute, err))
+    }
+
     pub fn rename(&self, old_path: &VaultPath, new_path: &VaultPath) -> Result<()> {
         let old_absolute = self.resolve_existing(old_path)?;
         let new_absolute = self.resolve_for_write(new_path)?;
