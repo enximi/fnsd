@@ -57,6 +57,10 @@ impl LocalStore {
         })
     }
 
+    pub fn clear_ack_pending(&self) -> Result<()> {
+        database::clear_ack_pending(&self.conn)
+    }
+
     pub fn set_sync_time(&self, kind: ResourceKind, value: RemoteMillis) -> Result<()> {
         database::set_sync_time(&self.conn, kind, value)
     }

@@ -11,8 +11,8 @@ pub(crate) use hash::{
     set_hash_entry, set_sync_time, sync_time,
 };
 pub(crate) use pending::{
-    file_upload_checkpoint, has_pending_modify, insert_pending_delete, pop_pending_rename,
-    pending_delete_count, pending_modify_count, pending_rename_count,
+    clear_ack_pending, file_upload_checkpoint, has_pending_modify, insert_pending_delete,
+    pop_pending_rename, pending_delete_count, pending_modify_count, pending_rename_count,
     push_pending_rename, remove_file_upload_checkpoint, remove_pending_delete,
     remove_pending_modify, set_file_upload_checkpoint, set_pending_modify,
 };

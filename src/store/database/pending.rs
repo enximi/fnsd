@@ -73,6 +73,17 @@ pub(crate) fn pending_modify_count(conn: &Connection) -> Result<u64> {
     table_count(conn, "pending_modifies")
 }
 
+pub(crate) fn clear_ack_pending(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        DELETE FROM pending_modifies;
+        DELETE FROM pending_deletes;
+        DELETE FROM pending_renames;
+        ",
+    )?;
+    Ok(())
+}
+
 pub(crate) fn file_upload_checkpoint(
     conn: &Connection,
     path: &VaultPath,

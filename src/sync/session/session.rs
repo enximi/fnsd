@@ -82,6 +82,7 @@ impl SyncSession {
         vault: &VaultFs,
         store: &mut LocalStore,
     ) -> Result<()> {
+        store.clear_ack_pending()?;
         let summary = SyncEngine::new(self.config.clone())
             .sync_authenticated(ws, vault, store)
             .await?;
