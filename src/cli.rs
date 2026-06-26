@@ -3,6 +3,7 @@ use std::process::ExitCode;
 
 use crate::config::AppConfig;
 use crate::daemon::Daemon;
+use crate::store::LocalStore;
 use crate::sync::engine::SyncEngine;
 use clap::{Parser, Subcommand};
 use tracing::{error, info};
@@ -30,6 +31,13 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    #[command(about = "Write an example configuration file")]
+    InitConfig {
+        #[arg(long, help = "Overwrite the target file if it already exists")]
+        force: bool,
+    },
+    #[command(about = "Show local sync state")]
+    Status,
     #[command(about = "Validate the configuration file")]
     Config {
         #[command(subcommand)]
@@ -87,6 +95,8 @@ pub async fn run() -> ExitCode {
 
 async fn run_command(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
+        Command::InitConfig { force } => init_config(cli.config, force),
+        Command::Status => show_status(cli.config),
         Command::Config {
             command: ConfigCommand::Check,
         } => check_config(cli.config),
@@ -103,6 +113,61 @@ fn check_config(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     info!(config = %path.display(), "checking config");
     AppConfig::load(&path)?;
     println!("config ok: {}", path.display());
+    Ok(())
+}
+
+fn init_config(path: PathBuf, force: bool) -> Result<(), Box<dyn std::error::Error>> {
+    if path.exists() && !force {
+        return Err(format!(
+            "config already exists: {} (use --force to overwrite)",
+            path.display()
+        )
+        .into());
+    }
+
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    std::fs::write(&path, include_str!("../fnsd.example.toml"))?;
+    println!("config written: {}", path.display());
+    Ok(())
+}
+
+fn show_status(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let config = AppConfig::load(&path)?;
+    println!("config: {}", path.display());
+    println!("vault: {} ({})", config.vault.name, config.vault.root.display());
+    println!("server: {}", config.server.url);
+    println!("store: {}", config.store.path.display());
+
+    if !config.store.path.exists() {
+        println!("state: missing");
+        return Ok(());
+    }
+
+    let store = LocalStore::open(&config.store.path)?;
+    let status = store.status()?;
+
+    println!("state: ok");
+    println!(
+        "sync time: notes={}, files={}, folders={}, settings={}",
+        status.note_sync_time.as_i64(),
+        status.file_sync_time.as_i64(),
+        status.folder_sync_time.as_i64(),
+        status.setting_sync_time.as_i64()
+    );
+    println!("hash entries: {}", status.hash_entries);
+    println!(
+        "pending: modifies={}, deletes={}, renames={}",
+        status.pending_modifies, status.pending_deletes, status.pending_renames
+    );
+    println!(
+        "transfer checkpoints: uploads={}, download chunks={}",
+        status.upload_checkpoints, status.download_chunks
+    );
     Ok(())
 }
 

@@ -38,10 +38,10 @@ target/release/fnsd
 
 ## 配置
 
-复制配置示例：
+生成配置示例：
 
 ```powershell
-Copy-Item fnsd.example.toml fnsd.toml
+fnsd --config fnsd.toml init-config
 ```
 
 最少需要配置这些字段：
@@ -72,6 +72,12 @@ root = "D:/Obsidian/My Vault"
 
 ```powershell
 fnsd --config fnsd.toml config check
+```
+
+查看本地同步状态：
+
+```powershell
+fnsd --config fnsd.toml status
 ```
 
 执行一次同步后退出：
@@ -107,6 +113,37 @@ $env:FNSD_LOG = "debug"
 $env:FNSD_LOG_FILE = ".fnsd/fnsd.log"
 ```
 
+## systemd
+
+在 Linux 服务器上，可以先把示例 unit 文件复制到 `/etc/systemd/system/fnsd.service`：
+
+```powershell
+Copy-Item deploy/systemd/fnsd.service /etc/systemd/system/fnsd.service
+```
+
+然后把配置文件放到 `/etc/fnsd/fnsd.toml`，并把其中的路径写成绝对路径：
+
+```toml
+[vault]
+root = "/srv/obsidian/vault"
+
+[store]
+path = "/var/lib/fnsd/state.sqlite"
+```
+
+接着启用并启动服务：
+
+```powershell
+systemctl daemon-reload
+systemctl enable --now fnsd
+```
+
+查看日志：
+
+```powershell
+journalctl -u fnsd -f
+```
+
 ## 环境变量
 
 配置项可以通过 `FNSD_` 前缀设置。嵌套字段使用 `__` 分隔。
@@ -125,6 +162,15 @@ $env:FNSD_STORE__PATH = "D:/Obsidian/My Vault/.fnsd/state.sqlite"
 
 ```powershell
 $env:FNSD_SCAN__IGNORE_EXTENSIONS = "tmp,bak"
+```
+
+## 客户端名称和 token 限制
+
+fnsd 默认在 websocket 握手时发送 `client.name = "fnsd"`。如果 Fast Note Sync 服务器上的 token 配置了客户端名称或类型限制，需要允许 `fnsd`，或者在配置里改成和 token 限制匹配的值：
+
+```toml
+[client]
+name = "fnsd"
 ```
 
 ## Docker

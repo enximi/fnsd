@@ -7,15 +7,26 @@ use tokio::time::Instant;
 
 #[derive(Debug, Default)]
 pub(crate) struct RemoteEchoes {
+    paths: Vec<EchoPath>,
     renames: Vec<EchoRename>,
 }
 
 impl RemoteEchoes {
+    pub(crate) fn record_path(&mut self, kind: ResourceKind, path: VaultPath) {
+        self.paths.push(EchoPath {
+            kind,
+            path,
+            expires_at: echo_expires_at(),
+        });
+    }
+
     pub(crate) fn record_outcome(&mut self, outcome: &EventOutcome) {
         match outcome {
-            EventOutcome::RemoteWrite { .. }
-            | EventOutcome::RemoteDelete { .. }
-            | EventOutcome::RemoteMtimeUpdate { .. } => {}
+            EventOutcome::RemoteWrite { kind, path }
+            | EventOutcome::RemoteDelete { kind, path }
+            | EventOutcome::RemoteMtimeUpdate { kind, path } => {
+                self.record_path(*kind, path.clone());
+            }
             EventOutcome::RemoteRename {
                 kind,
                 old_path,
@@ -50,7 +61,9 @@ impl RemoteEchoes {
         self.prune_expired();
 
         match event {
-            VaultWatchEvent::Changed { path } => self.consume_rename_changed(path),
+            VaultWatchEvent::Changed { path } => {
+                self.consume_path(path) || self.consume_rename_changed(path)
+            }
             VaultWatchEvent::RenameFrom { path } => self.consume_rename_from(path),
             VaultWatchEvent::RenameTo { path } => self.consume_rename_to(path),
             VaultWatchEvent::Renamed { old_path, new_path } => {
@@ -58,6 +71,14 @@ impl RemoteEchoes {
             }
             VaultWatchEvent::RescanNeeded => false,
         }
+    }
+
+    fn consume_path(&mut self, path: &VaultPath) -> bool {
+        let Some(index) = self.paths.iter().position(|echo| echo.matches(path)) else {
+            return false;
+        };
+        self.paths.remove(index);
+        true
     }
 
     fn consume_rename_changed(&mut self, path: &VaultPath) -> bool {
@@ -110,7 +131,21 @@ impl RemoteEchoes {
 
     fn prune_expired(&mut self) {
         let now = Instant::now();
+        self.paths.retain(|echo| echo.expires_at > now);
         self.renames.retain(|echo| echo.expires_at > now);
+    }
+}
+
+#[derive(Debug)]
+struct EchoPath {
+    kind: ResourceKind,
+    path: VaultPath,
+    expires_at: Instant,
+}
+
+impl EchoPath {
+    fn matches(&self, path: &VaultPath) -> bool {
+        paths_match(self.kind, &self.path, path)
     }
 }
 

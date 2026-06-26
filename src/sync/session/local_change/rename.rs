@@ -37,6 +37,12 @@ impl LocalChangeSender<'_> {
             }
         } else if self
             .store
+            .hash_entry(ResourceKind::Setting, old_path)?
+            .is_some()
+        {
+            return self.send_setting_rename_as_delete_modify(old_path, new_path).await;
+        } else if self
+            .store
             .hash_entry(ResourceKind::File, old_path)?
             .is_some()
         {
@@ -55,6 +61,17 @@ impl LocalChangeSender<'_> {
 
         self.send_path_change(old_path).await?;
         self.send_path_change(new_path).await
+    }
+
+    async fn send_setting_rename_as_delete_modify(
+        &mut self,
+        old_path: &VaultPath,
+        new_path: &VaultPath,
+    ) -> Result<()> {
+        self.send_path_change(old_path).await?;
+        self.send_path_change(new_path).await?;
+        debug!(old_path = %old_path, new_path = %new_path, "sent setting rename as delete and modify");
+        Ok(())
     }
 
     async fn send_note_rename(&mut self, old_path: &VaultPath, new_path: &VaultPath) -> Result<()> {

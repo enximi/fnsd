@@ -140,6 +140,13 @@ pub(crate) fn all_hash_paths(conn: &Connection, kind: ResourceKind) -> Result<Ve
     rows.map(|row| Ok(VaultPath::new(&row?)?)).collect()
 }
 
+pub(crate) fn hash_entry_count(conn: &Connection) -> Result<u64> {
+    let count = conn.query_row("SELECT COUNT(*) FROM hash_entries", [], |row| {
+        row.get::<_, i64>(0)
+    })?;
+    Ok(count.try_into().unwrap_or_default())
+}
+
 fn hash_tree_rows(
     conn: &Connection,
     kind: ResourceKind,

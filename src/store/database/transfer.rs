@@ -80,3 +80,18 @@ pub(crate) fn clear_download_chunks(
     )?;
     Ok(())
 }
+
+pub(crate) fn upload_checkpoint_count(conn: &Connection) -> Result<u64> {
+    table_count(conn, "upload_checkpoints")
+}
+
+pub(crate) fn download_chunk_count(conn: &Connection) -> Result<u64> {
+    table_count(conn, "download_chunks")
+}
+
+fn table_count(conn: &Connection, table: &'static str) -> Result<u64> {
+    let count = conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+        row.get::<_, i64>(0)
+    })?;
+    Ok(count.try_into().unwrap_or_default())
+}

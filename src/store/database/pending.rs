@@ -69,6 +69,10 @@ pub(crate) fn has_pending_modify(
     Ok(exists)
 }
 
+pub(crate) fn pending_modify_count(conn: &Connection) -> Result<u64> {
+    table_count(conn, "pending_modifies")
+}
+
 pub(crate) fn file_upload_checkpoint(
     conn: &Connection,
     path: &VaultPath,
@@ -156,6 +160,10 @@ pub(crate) fn remove_pending_delete(
     Ok(changed > 0)
 }
 
+pub(crate) fn pending_delete_count(conn: &Connection) -> Result<u64> {
+    table_count(conn, "pending_deletes")
+}
+
 pub(crate) fn push_pending_rename(
     conn: &Connection,
     kind: ResourceKind,
@@ -213,4 +221,15 @@ pub(crate) fn pop_pending_rename(
 
     conn.execute("DELETE FROM pending_renames WHERE id = ?1", params![id])?;
     Ok(Some(rename))
+}
+
+pub(crate) fn pending_rename_count(conn: &Connection) -> Result<u64> {
+    table_count(conn, "pending_renames")
+}
+
+fn table_count(conn: &Connection, table: &'static str) -> Result<u64> {
+    let count = conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+        row.get::<_, i64>(0)
+    })?;
+    Ok(count.try_into().unwrap_or_default())
 }

@@ -38,10 +38,10 @@ target/release/fnsd
 
 ## Configuration
 
-Copy the example config:
+Create an example config:
 
 ```powershell
-Copy-Item fnsd.example.toml fnsd.toml
+fnsd --config fnsd.toml init-config
 ```
 
 Minimum required settings:
@@ -72,6 +72,12 @@ Validate the config:
 
 ```powershell
 fnsd --config fnsd.toml config check
+```
+
+Show local sync state:
+
+```powershell
+fnsd --config fnsd.toml status
 ```
 
 Run one sync pass and exit:
@@ -107,6 +113,37 @@ $env:FNSD_LOG = "debug"
 $env:FNSD_LOG_FILE = ".fnsd/fnsd.log"
 ```
 
+## systemd
+
+For Linux servers, copy the example unit file to `/etc/systemd/system/fnsd.service`:
+
+```powershell
+Copy-Item deploy/systemd/fnsd.service /etc/systemd/system/fnsd.service
+```
+
+Prepare the config file at `/etc/fnsd/fnsd.toml` and make sure the paths inside it are absolute:
+
+```toml
+[vault]
+root = "/srv/obsidian/vault"
+
+[store]
+path = "/var/lib/fnsd/state.sqlite"
+```
+
+Then enable and start the service:
+
+```powershell
+systemctl daemon-reload
+systemctl enable --now fnsd
+```
+
+View logs with:
+
+```powershell
+journalctl -u fnsd -f
+```
+
 ## Environment Variables
 
 Configuration values can be supplied with the `FNSD_` prefix. Nested fields use `__`.
@@ -125,6 +162,15 @@ List values use commas:
 
 ```powershell
 $env:FNSD_SCAN__IGNORE_EXTENSIONS = "tmp,bak"
+```
+
+## Client Name and Token Restrictions
+
+fnsd sends `client.name = "fnsd"` during the websocket handshake by default. If your Fast Note Sync server token is restricted by client name/type, allow `fnsd` for that token or set a matching value:
+
+```toml
+[client]
+name = "fnsd"
 ```
 
 ## Docker

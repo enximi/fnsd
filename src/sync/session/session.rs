@@ -158,7 +158,9 @@ impl SyncSession {
                 .await?;
             }
             WsEvent::FileChunk(chunk) => {
-                downloads.accept_chunk(vault, store, chunk)?;
+                if let Some(path) = downloads.accept_chunk(vault, store, chunk)? {
+                    remote_echoes.record_path(crate::core::ResourceKind::File, path);
+                }
             }
             WsEvent::Ping(_) | WsEvent::Pong(_) | WsEvent::Binary(_) => {}
             WsEvent::Closed => return Err(SyncSessionError::WebSocketClosed),

@@ -1,0 +1,17 @@
+[Unit]
+Description=fnsd
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fnsd
+Group=fnsd
+WorkingDirectory=/var/lib/fnsd
+ExecStart=/usr/local/bin/fnsd --config /etc/fnsd/fnsd.toml daemon run
+Restart=on-failure
+RestartSec=5
+Environment=FNSD_LOG=info
+
+[Install]
+WantedBy=multi-user.target

@@ -11,6 +11,20 @@ pub struct LocalStore {
     conn: Connection,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoreStatus {
+    pub note_sync_time: RemoteMillis,
+    pub file_sync_time: RemoteMillis,
+    pub folder_sync_time: RemoteMillis,
+    pub setting_sync_time: RemoteMillis,
+    pub hash_entries: u64,
+    pub pending_modifies: u64,
+    pub pending_deletes: u64,
+    pub pending_renames: u64,
+    pub upload_checkpoints: u64,
+    pub download_chunks: u64,
+}
+
 impl LocalStore {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref().to_path_buf();
@@ -26,6 +40,21 @@ impl LocalStore {
 
     pub fn sync_time(&self, kind: ResourceKind) -> Result<RemoteMillis> {
         database::sync_time(&self.conn, kind)
+    }
+
+    pub fn status(&self) -> Result<StoreStatus> {
+        Ok(StoreStatus {
+            note_sync_time: self.sync_time(ResourceKind::Note)?,
+            file_sync_time: self.sync_time(ResourceKind::File)?,
+            folder_sync_time: self.sync_time(ResourceKind::Folder)?,
+            setting_sync_time: self.sync_time(ResourceKind::Setting)?,
+            hash_entries: database::hash_entry_count(&self.conn)?,
+            pending_modifies: database::pending_modify_count(&self.conn)?,
+            pending_deletes: database::pending_delete_count(&self.conn)?,
+            pending_renames: database::pending_rename_count(&self.conn)?,
+            upload_checkpoints: database::upload_checkpoint_count(&self.conn)?,
+            download_chunks: database::download_chunk_count(&self.conn)?,
+        })
     }
 
     pub fn set_sync_time(&self, kind: ResourceKind, value: RemoteMillis) -> Result<()> {

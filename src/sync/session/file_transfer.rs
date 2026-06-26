@@ -1,4 +1,4 @@
-use crate::core::ResourceKind;
+use crate::core::{ResourceKind, VaultPath};
 use crate::store::LocalStore;
 use crate::sync::engine::TransferOptions;
 use crate::sync::plan::{FileDownload, FileUpload};
@@ -32,11 +32,11 @@ impl ActiveDownloads {
         vault: &VaultFs,
         store: &mut LocalStore,
         chunk: crate::protocol::FileChunkFrame,
-    ) -> Result<()> {
+    ) -> Result<Option<VaultPath>> {
         let session_id = chunk.session_id().to_string();
         let Some(session) = self.sessions.get_mut(&session_id) else {
             warn!(session_id = %session_id, "ignored file chunk without active session");
-            return Ok(());
+            return Ok(None);
         };
 
         session.accept_chunk(chunk)?;
@@ -54,9 +54,10 @@ impl ActiveDownloads {
                 file.mtime,
                 file.size,
             )?;
+            return Ok(Some(file.path));
         }
 
-        Ok(())
+        Ok(None)
     }
 }
 
