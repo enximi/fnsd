@@ -181,7 +181,7 @@ name = "fnsd"
 docker run --rm ghcr.io/enximi/fnsd:latest --help
 ```
 
-也可以使用版本 tag，例如 `ghcr.io/enximi/fnsd:v0.1.2`。
+也可以使用版本 tag，例如 `ghcr.io/enximi/fnsd:v0.1.3`。
 
 ### Docker Compose
 

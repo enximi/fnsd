@@ -181,7 +181,7 @@ Run fnsd with a Docker image:
 docker run --rm ghcr.io/enximi/fnsd:latest --help
 ```
 
-Version tags are also available, for example `ghcr.io/enximi/fnsd:v0.1.2`.
+Version tags are also available, for example `ghcr.io/enximi/fnsd:v0.1.3`.
 
 ### Docker Compose
 

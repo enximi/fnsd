@@ -2,6 +2,7 @@ FROM rust:1-bookworm AS builder
 
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
+COPY fnsd.example.toml ./
 COPY src ./src
 
 RUN cargo build --release --locked
