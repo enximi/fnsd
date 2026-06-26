@@ -121,11 +121,15 @@ pub struct ClientDescriptor {
 }
 
 impl ClientDescriptor {
-    pub fn fnsd(name: impl Into<String>, version: impl Into<String>) -> Self {
+    pub fn fnsd(
+        name: impl Into<String>,
+        client_type: impl Into<String>,
+        version: impl Into<String>,
+    ) -> Self {
         Self {
             name: name.into(),
             version: version.into(),
-            client_type: "fnsd".to_string(),
+            client_type: client_type.into(),
             is_desktop: false,
             is_mobile: false,
             is_phone: false,

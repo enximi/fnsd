@@ -40,7 +40,7 @@ impl SyncEngine {
         let ws_url = self
             .config
             .server
-            .ws_url_with_protocol(self.config.client.protobuf)?;
+            .ws_url_with_protocol(self.config.client.protobuf, &self.config.client)?;
         info!(server = %ws_url, "connecting websocket");
         let mut ws = WebSocketClient::connect(&ws_url).await?;
         debug!("sending authorization request");
@@ -63,10 +63,15 @@ impl SyncEngine {
         let vault_name = self.config.vault_name()?;
         let scan_options = self.config.scan_options()?;
         debug!("scanning vault");
-        let snapshot = scan_vault(self.config.vault.root.clone(), scan_options).await?;
+        let snapshot = scan_vault(self.config.vault.root.clone(), scan_options.clone()).await?;
         let context = Some(uuid::Uuid::new_v4().to_string());
-        let batches =
-            SyncBatches::from_snapshot(snapshot, store, context, self.options.missing_path_mode)?;
+        let batches = SyncBatches::from_snapshot(
+            snapshot,
+            store,
+            &scan_options,
+            context,
+            self.options.missing_path_mode,
+        )?;
         info!(
             notes = batches.notes.items.len(),
             files = batches.files.items.len(),
@@ -108,6 +113,7 @@ impl SyncEngine {
     fn client_info(&self) -> ClientDescriptor {
         let mut info = ClientDescriptor::fnsd(
             self.config.client.name.clone(),
+            self.config.client.client_type.clone(),
             self.config.client.version.clone(),
         );
         info.protobuf = self.config.client.protobuf;

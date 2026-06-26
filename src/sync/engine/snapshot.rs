@@ -6,7 +6,7 @@ use crate::core::{
 };
 use crate::hash::path_hash;
 use crate::store::LocalStore;
-use crate::vault::fs::VaultSnapshot;
+use crate::vault::fs::{VaultScanOptions, VaultSnapshot};
 
 use crate::sync::engine::{MissingPathMode, Result};
 
@@ -22,6 +22,7 @@ impl SyncBatches {
     pub fn from_snapshot(
         snapshot: VaultSnapshot,
         store: &LocalStore,
+        scan_options: &VaultScanOptions,
         context: Option<String>,
         missing_path_mode: MissingPathMode,
     ) -> Result<Self> {
@@ -30,14 +31,30 @@ impl SyncBatches {
         let folder_time = store.sync_time(ResourceKind::Folder)?;
         let setting_time = store.sync_time(ResourceKind::Setting)?;
 
-        let note_missing =
-            missing_or_deleted(ResourceKind::Note, note_paths(&snapshot.notes), store)?;
-        let file_missing =
-            missing_or_deleted(ResourceKind::File, file_paths(&snapshot.files), store)?;
-        let folder_missing =
-            missing_or_deleted(ResourceKind::Folder, folder_paths(&snapshot.folders), store)?;
-        let setting_missing =
-            missing_or_deleted(ResourceKind::Setting, text_paths(&snapshot.settings), store)?;
+        let note_missing = missing_or_deleted(
+            ResourceKind::Note,
+            note_paths(&snapshot.notes),
+            store,
+            scan_options,
+        )?;
+        let file_missing = missing_or_deleted(
+            ResourceKind::File,
+            file_paths(&snapshot.files),
+            store,
+            scan_options,
+        )?;
+        let folder_missing = missing_or_deleted(
+            ResourceKind::Folder,
+            folder_paths(&snapshot.folders),
+            store,
+            scan_options,
+        )?;
+        let setting_missing = missing_or_deleted(
+            ResourceKind::Setting,
+            text_paths(&snapshot.settings),
+            store,
+            scan_options,
+        )?;
 
         Ok(Self {
             notes: apply_missing_mode(
@@ -97,15 +114,7 @@ where
     items
         .into_iter()
         .filter_map(|item| {
-            match is_unchanged(
-                kind,
-                item.path(),
-                Some(item.content_hash()),
-                item.mtime(),
-                None,
-                last_time,
-                store,
-            ) {
+            match text_is_unchanged(kind, item.path(), item.content_hash(), last_time, store) {
                 Ok(true) => None,
                 Ok(false) => Some(Ok(item)),
                 Err(err) => Some(Err(err)),
@@ -122,12 +131,11 @@ fn filter_file_resources(
     items
         .into_iter()
         .filter_map(|item| {
-            match is_unchanged(
+            match file_is_unchanged(
                 ResourceKind::File,
                 &item.path,
-                Some(&item.content_hash),
-                item.mtime,
-                Some(item.size),
+                &item.content_hash,
+                item.size,
                 last_time,
                 store,
             ) {
@@ -160,12 +168,10 @@ fn filter_folder_resources(
         .collect()
 }
 
-fn is_unchanged(
+fn text_is_unchanged(
     kind: ResourceKind,
     path: &VaultPath,
-    content_hash: Option<&ContentHash>,
-    mtime: RemoteMillis,
-    size: Option<u64>,
+    content_hash: &ContentHash,
     last_time: RemoteMillis,
     store: &LocalStore,
 ) -> Result<bool> {
@@ -173,7 +179,7 @@ fn is_unchanged(
         return Ok(false);
     }
 
-    if last_time.as_i64() == 0 || mtime >= last_time {
+    if last_time.as_i64() == 0 {
         return Ok(false);
     }
 
@@ -181,31 +187,42 @@ fn is_unchanged(
         return Ok(false);
     };
 
-    if entry.mtime()? != mtime {
+    Ok(entry.content_hash()?.as_ref() == Some(content_hash))
+}
+
+fn file_is_unchanged(
+    kind: ResourceKind,
+    path: &VaultPath,
+    content_hash: &ContentHash,
+    size: u64,
+    last_time: RemoteMillis,
+    store: &LocalStore,
+) -> Result<bool> {
+    if store.has_pending_modify(kind, path)? {
         return Ok(false);
     }
 
-    if let Some(size) = size
-        && entry.size != size
-    {
+    if last_time.as_i64() == 0 {
         return Ok(false);
     }
 
-    if let Some(content_hash) = content_hash {
-        return Ok(entry.content_hash()?.as_ref() == Some(content_hash));
-    }
+    let Some(entry) = store.hash_entry(kind, path)? else {
+        return Ok(false);
+    };
 
-    Ok(entry.content_hash()?.is_none())
+    Ok(entry.size == size && entry.content_hash()?.as_ref() == Some(content_hash))
 }
 
 fn missing_or_deleted(
     kind: ResourceKind,
     current_paths: BTreeSet<VaultPath>,
     store: &LocalStore,
+    scan_options: &VaultScanOptions,
 ) -> Result<Vec<DeletedResource>> {
     store
         .all_hash_paths(kind)?
         .into_iter()
+        .filter(|path| is_managed_path(kind, path, scan_options))
         .filter(|path| !current_paths.contains(path))
         .map(|path| {
             Ok(DeletedResource {
@@ -214,6 +231,25 @@ fn missing_or_deleted(
             })
         })
         .collect()
+}
+
+fn is_managed_path(kind: ResourceKind, path: &VaultPath, scan_options: &VaultScanOptions) -> bool {
+    if scan_options.should_ignore(path) {
+        return false;
+    }
+
+    match kind {
+        ResourceKind::Setting => scan_options.is_setting_path(path),
+        ResourceKind::Note => is_note_path(path) && !scan_options.is_setting_path(path),
+        ResourceKind::File => !is_note_path(path) && !scan_options.is_setting_path(path),
+        ResourceKind::Folder => !scan_options.is_setting_path(path),
+    }
+}
+
+fn is_note_path(path: &VaultPath) -> bool {
+    path.as_str()
+        .rsplit_once('.')
+        .is_some_and(|(_, extension)| extension.eq_ignore_ascii_case("md"))
 }
 
 fn apply_missing_mode<T>(
@@ -251,7 +287,6 @@ fn folder_paths(items: &[FolderResource]) -> BTreeSet<VaultPath> {
 trait TextResourceView {
     fn path(&self) -> &VaultPath;
     fn content_hash(&self) -> &ContentHash;
-    fn mtime(&self) -> RemoteMillis;
 }
 
 impl TextResourceView for TextResource {
@@ -261,10 +296,6 @@ impl TextResourceView for TextResource {
 
     fn content_hash(&self) -> &ContentHash {
         &self.content_hash
-    }
-
-    fn mtime(&self) -> RemoteMillis {
-        self.mtime
     }
 }
 

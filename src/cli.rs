@@ -139,7 +139,11 @@ fn init_config(path: PathBuf, force: bool) -> Result<(), Box<dyn std::error::Err
 fn show_status(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     let config = AppConfig::load(&path)?;
     println!("config: {}", path.display());
-    println!("vault: {} ({})", config.vault.name, config.vault.root.display());
+    println!(
+        "vault: {} ({})",
+        config.vault.name,
+        config.vault.root.display()
+    );
     println!("server: {}", config.server.url);
     println!("store: {}", config.store.path.display());
 

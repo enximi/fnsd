@@ -1,5 +1,5 @@
 use crate::core::{ResourceKind, VaultName, VaultPath};
-use crate::hash::text_content_hash;
+use crate::hash::{setting_content_hash, text_content_hash};
 use crate::protocol::Action;
 use crate::store::{LocalStore, UploadCheckpoint};
 use crate::sync::plan::{FileUpload, build_note_modify_request, build_setting_modify_request};
@@ -54,7 +54,7 @@ pub(crate) async fn send_setting_modify(
     debug!(path = %path, "sending setting modify");
     let content = vault.read_text(path)?;
     let metadata = vault.file_metadata(path)?;
-    let content_hash = text_content_hash(&content);
+    let content_hash = setting_content_hash(content.as_bytes());
     let request = build_setting_modify_request(
         vault_name,
         path,

@@ -102,7 +102,7 @@ impl SyncSession {
         let ws_url = self
             .config
             .server
-            .ws_url_with_protocol(self.config.client.protobuf)?;
+            .ws_url_with_protocol(self.config.client.protobuf, &self.config.client)?;
         info!(server = %ws_url, "connecting long-lived websocket session");
         let mut ws = WebSocketClient::connect(&ws_url).await?;
         ws.authorize(self.config.server.api_token.clone()).await?;
@@ -252,8 +252,11 @@ async fn send_client_info(
     vault: &VaultFs,
     store: &mut LocalStore,
 ) -> Result<()> {
-    let mut info =
-        ClientDescriptor::fnsd(config.client.name.clone(), config.client.version.clone());
+    let mut info = ClientDescriptor::fnsd(
+        config.client.name.clone(),
+        config.client.client_type.clone(),
+        config.client.version.clone(),
+    );
     info.protobuf = config.client.protobuf;
     ws.send_client_info(&info).await?;
 

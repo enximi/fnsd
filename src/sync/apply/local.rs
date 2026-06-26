@@ -1,11 +1,12 @@
 use std::io::ErrorKind;
 
 use crate::core::{DeletedResource, RemoteMillis, ResourceKind, VaultPath};
+use crate::hash::{setting_content_hash, text_content_hash};
 use crate::store::LocalStore;
 use crate::sync::plan::{MtimeUpdate, RemoteText, RemoteTextRename};
 use crate::vault::fs::{VaultFileTimes, VaultFs, VaultFsError};
 
-use crate::sync::apply::{EventOutcome, Result};
+use crate::sync::apply::{EventOutcome, Result, SyncApplyError};
 
 pub(crate) fn apply_remote_text(
     kind: ResourceKind,
@@ -13,6 +14,7 @@ pub(crate) fn apply_remote_text(
     vault: &VaultFs,
     store: &mut LocalStore,
 ) -> Result<EventOutcome> {
+    validate_remote_text_hash(kind, &text)?;
     vault.write_text(
         &text.path,
         &text.content,
@@ -29,6 +31,25 @@ pub(crate) fn apply_remote_text(
     Ok(EventOutcome::RemoteWrite {
         kind,
         path: text.path,
+    })
+}
+
+fn validate_remote_text_hash(kind: ResourceKind, text: &RemoteText) -> Result<()> {
+    let actual = match kind {
+        ResourceKind::Setting => setting_content_hash(text.content.as_bytes()),
+        ResourceKind::Note => text_content_hash(&text.content),
+        ResourceKind::File | ResourceKind::Folder => text.content_hash.clone(),
+    };
+
+    if actual == text.content_hash {
+        return Ok(());
+    }
+
+    Err(SyncApplyError::ContentHashMismatch {
+        kind,
+        path: text.path.clone(),
+        expected: text.content_hash.clone(),
+        actual,
     })
 }
 

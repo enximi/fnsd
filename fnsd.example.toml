@@ -52,5 +52,6 @@ retry_max_seconds = 300
 
 [client]
 name = "fnsd"
+client_type = "fnsd"
 version = "0.1.0"
 protobuf = true

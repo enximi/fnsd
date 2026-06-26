@@ -9,6 +9,10 @@ pub fn binary_content_hash(bytes: &[u8]) -> ContentHash {
     ContentHash::new(bytes_hash_value(bytes)).expect("computed binary hash must be valid")
 }
 
+pub fn setting_content_hash(bytes: &[u8]) -> ContentHash {
+    binary_content_hash(bytes)
+}
+
 pub fn file_content_hash(bytes: &[u8]) -> ContentHash {
     if bytes.len() <= FILE_HASH_THRESHOLD {
         return binary_content_hash(bytes);

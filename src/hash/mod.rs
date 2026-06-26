@@ -8,7 +8,7 @@ pub(crate) mod bytes;
 mod path;
 mod text;
 
-pub use bytes::file_content_hash;
+pub use bytes::{file_content_hash, setting_content_hash};
 pub use path::path_hash;
 pub use text::text_content_hash;
 

@@ -25,8 +25,4 @@ impl HashEntry {
             .map(ContentHash::new)
             .transpose()?)
     }
-
-    pub fn mtime(&self) -> Result<RemoteMillis> {
-        Ok(RemoteMillis::new(self.mtime)?)
-    }
 }

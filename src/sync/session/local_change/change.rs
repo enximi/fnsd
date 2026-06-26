@@ -1,5 +1,5 @@
 use crate::core::{RemoteMillis, ResourceKind, VaultPath};
-use crate::hash::{file_content_hash, path_hash, text_content_hash};
+use crate::hash::{file_content_hash, path_hash, setting_content_hash, text_content_hash};
 use crate::protocol::{Action, FileUploadCheckRequest, FolderCreateRequest};
 use crate::sync::plan::{build_note_modify_request, build_setting_modify_request};
 use crate::vault::fs::VaultScanOptions;
@@ -52,7 +52,7 @@ impl LocalChangeSender<'_> {
     async fn send_note_modify(&mut self, path: &VaultPath) -> Result<()> {
         let content = self.vault.read_text(path)?;
         let metadata = self.vault.file_metadata(path)?;
-        let content_hash = text_content_hash(&content);
+        let content_hash = setting_content_hash(content.as_bytes());
         let request = build_note_modify_request(
             self.vault_name,
             path,
@@ -163,7 +163,7 @@ impl LocalChangeSender<'_> {
         }
 
         if scan_options.is_setting_path(path) {
-            return self.text_file_unchanged(ResourceKind::Setting, path);
+            return self.setting_file_unchanged(path);
         }
 
         if super::is_note_path(path) {
@@ -190,6 +190,14 @@ impl LocalChangeSender<'_> {
             entry.content_hash()?.as_ref() == Some(&file_content_hash(&bytes))
                 && entry.size == bytes.len() as u64,
         )
+    }
+
+    fn setting_file_unchanged(&self, path: &VaultPath) -> Result<bool> {
+        let Some(entry) = self.store.hash_entry(ResourceKind::Setting, path)? else {
+            return Ok(false);
+        };
+        let bytes = self.vault.read_bytes(path)?;
+        Ok(entry.content_hash()?.as_ref() == Some(&setting_content_hash(&bytes)))
     }
 }
 

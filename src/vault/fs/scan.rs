@@ -1,7 +1,7 @@
 use crate::core::{
     FileResource, FolderResource, NoteResource, RemoteMillis, SettingResource, VaultPath,
 };
-use crate::hash::{file_content_hash, path_hash, text_content_hash};
+use crate::hash::{file_content_hash, path_hash, setting_content_hash, text_content_hash};
 
 use crate::vault::fs::{Result, VaultFs, error::io};
 
@@ -240,11 +240,17 @@ impl VaultFs {
                 return Ok(());
             }
 
-            let content = std::fs::read_to_string(&absolute).map_err(|err| io(&absolute, err))?;
+            let bytes = std::fs::read(&absolute).map_err(|err| io(&absolute, err))?;
+            std::str::from_utf8(&bytes).map_err(|err| {
+                io(
+                    &absolute,
+                    std::io::Error::new(std::io::ErrorKind::InvalidData, err),
+                )
+            })?;
             snapshot.settings.push(SettingResource {
                 path: path.clone(),
                 path_hash: path_hash(path.as_str())?,
-                content_hash: text_content_hash(&content),
+                content_hash: setting_content_hash(&bytes),
                 ctime: created_millis(&metadata),
                 mtime: modified_millis(&metadata),
             });

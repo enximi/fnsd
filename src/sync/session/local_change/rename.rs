@@ -40,7 +40,9 @@ impl LocalChangeSender<'_> {
             .hash_entry(ResourceKind::Setting, old_path)?
             .is_some()
         {
-            return self.send_setting_rename_as_delete_modify(old_path, new_path).await;
+            return self
+                .send_setting_rename_as_delete_modify(old_path, new_path)
+                .await;
         } else if self
             .store
             .hash_entry(ResourceKind::File, old_path)?

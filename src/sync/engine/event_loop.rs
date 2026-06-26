@@ -52,6 +52,14 @@ impl SyncEngine {
                     }
 
                     self.handle_transfer_outcome(&mut transfers, &outcome);
+                    if let EventOutcome::FileDownloadSessionReady(download) = &outcome {
+                        self.start_download_session(
+                            vault,
+                            store,
+                            &mut transfers,
+                            download.clone(),
+                        )?;
+                    }
                     self.release_transfer_slot(&mut transfers, &outcome);
                     self.start_ready_transfers(ws, vault_name, vault, store, &mut transfers)
                         .await?;
@@ -105,10 +113,7 @@ impl SyncEngine {
                 debug!(path = %download.path, "queue file download request");
                 transfers.enqueue(QueuedTransfer::FileDownloadRequest(download.clone()));
             }
-            EventOutcome::FileDownloadSessionReady(download) => {
-                debug!(path = %download.path, session_id = %download.session_id, "queue file download session");
-                transfers.enqueue(QueuedTransfer::FileDownloadSession(download.clone()));
-            }
+            EventOutcome::FileDownloadSessionReady(_) => {}
             EventOutcome::SettingUploadRequested(path) => {
                 debug!(path = %path, "queue setting upload");
                 transfers.enqueue(QueuedTransfer::SettingUpload(path.clone()));
@@ -159,27 +164,35 @@ impl SyncEngine {
                 ws.send_json(Action::FileChunkDownload, &request).await?;
                 transfers.track_download_request(&download, key);
             }
-            QueuedTransfer::FileDownloadSession(download) => {
-                let mut session = DownloadSession::new(download)?;
-                store.restore_download_chunks(&mut session)?;
-                debug!(
-                    path = %session.path(),
-                    session_id = session.session_id(),
-                    received = session.received_chunks(),
-                    total = session.total_chunks(),
-                    "restored download checkpoint"
-                );
-
-                if session.is_complete() {
-                    finalize_download(vault, store, session)?;
-                    transfers.finish(key);
-                } else {
-                    transfers.insert_download(session);
-                }
-            }
             QueuedTransfer::SettingUpload(path) => {
                 send_setting_modify(ws, vault_name, vault, store, &path).await?;
             }
+        }
+
+        Ok(())
+    }
+
+    fn start_download_session(
+        &self,
+        vault: &VaultFs,
+        store: &mut LocalStore,
+        transfers: &mut TransferState,
+        download: crate::sync::plan::FileDownload,
+    ) -> Result<()> {
+        let mut session = DownloadSession::new(download)?;
+        store.restore_download_chunks(&mut session)?;
+        debug!(
+            path = %session.path(),
+            session_id = session.session_id(),
+            received = session.received_chunks(),
+            total = session.total_chunks(),
+            "restored download checkpoint"
+        );
+
+        if session.is_complete() {
+            finalize_download(vault, store, session)?;
+        } else {
+            transfers.insert_download(session);
         }
 
         Ok(())

@@ -146,15 +146,35 @@ impl ServerConfig {
         Ok(url.to_string())
     }
 
-    pub fn ws_url_with_protocol(&self, protobuf: bool) -> Result<String> {
+    pub fn ws_url_with_protocol(&self, protobuf: bool, client: &ClientConfig) -> Result<String> {
         let mut url = self.ws_url()?.parse::<Url>()?;
-        if protobuf {
-            let has_protocol = url.query_pairs().any(|(key, _)| key == "protocol");
-            if !has_protocol {
-                url.query_pairs_mut()
-                    .append_pair("protocol", "protobuf")
-                    .finish();
+        url.set_path("/api/user/sync");
+        let existing_keys = url
+            .query_pairs()
+            .map(|(key, _)| key.into_owned())
+            .collect::<std::collections::BTreeSet<_>>();
+
+        {
+            let mut query = url.query_pairs_mut();
+            if !existing_keys.contains("lang") {
+                query.append_pair("lang", "");
             }
+            if !existing_keys.contains("count") {
+                query.append_pair("count", "0");
+            }
+            if !existing_keys.contains("client") {
+                query.append_pair("client", &client.client_type);
+            }
+            if !existing_keys.contains("clientName") {
+                query.append_pair("clientName", &client.name);
+            }
+            if !existing_keys.contains("clientVersion") {
+                query.append_pair("clientVersion", &client.version);
+            }
+            if protobuf && !existing_keys.contains("protocol") {
+                query.append_pair("protocol", "protobuf");
+            }
+            query.finish();
         }
         Ok(url.to_string())
     }
@@ -219,6 +239,7 @@ impl Default for ScanConfig {
 #[serde(default)]
 pub struct ClientConfig {
     pub name: String,
+    pub client_type: String,
     pub version: String,
     pub protobuf: bool,
 }
@@ -227,6 +248,7 @@ impl Default for ClientConfig {
     fn default() -> Self {
         Self {
             name: "fnsd".to_string(),
+            client_type: "fnsd".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             protobuf: true,
         }

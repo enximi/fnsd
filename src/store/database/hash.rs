@@ -25,7 +25,7 @@ pub(crate) fn set_sync_time(
         "
         INSERT INTO sync_times (kind, value)
         VALUES (?1, ?2)
-        ON CONFLICT(kind) DO UPDATE SET value = excluded.value
+        ON CONFLICT(kind) DO UPDATE SET value = MAX(sync_times.value, excluded.value)
         ",
         params![kind_key(kind), value.as_i64()],
     )?;

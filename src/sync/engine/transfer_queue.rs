@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::time::{Duration, Instant};
 
 use crate::core::{ResourceKind, VaultPath};
-use crate::sync::plan::{FileDownload, FileUpload, RemoteFile};
+use crate::sync::plan::{FileUpload, RemoteFile};
 use crate::sync::transfer::DownloadSession;
 use tracing::{debug, warn};
 
@@ -164,7 +164,6 @@ pub(crate) enum QueuedTransfer {
     NoteUpload(VaultPath),
     FileUpload(FileUpload),
     FileDownloadRequest(RemoteFile),
-    FileDownloadSession(FileDownload),
     SettingUpload(VaultPath),
 }
 
@@ -176,9 +175,6 @@ impl QueuedTransfer {
             Self::FileDownloadRequest(file) => {
                 TransferKey::download_request(file.path_hash.to_string())
             }
-            Self::FileDownloadSession(download) => {
-                TransferKey::download_session(download.session_id.clone())
-            }
             Self::SettingUpload(path) => TransferKey::resource(ResourceKind::Setting, path),
         }
     }
@@ -186,7 +182,7 @@ impl QueuedTransfer {
     fn priority(&self) -> i8 {
         match self {
             Self::NoteUpload(_) | Self::FileUpload(_) | Self::SettingUpload(_) => 10,
-            Self::FileDownloadRequest(_) | Self::FileDownloadSession(_) => -10,
+            Self::FileDownloadRequest(_) => -10,
         }
     }
 }
